@@ -22,11 +22,11 @@
 ### Functions
 
 msg() {
-    printf "==> $*\n"
+    printf "==> $*\n" >&2
 }
 
 msg2() {
-    printf "  -> $*\n"
+    printf "  -> $*\n" >&2
 }
 
 warning() {
@@ -184,32 +184,32 @@ END {
 ' ${tplfile}
 }
 
-tmpfun() {
-# keyreg="{% *(.*) *%}"
-        cat - | awk '
-BEGIN {
-}
-/{% *(.*) *%}/ {
-  print
-}'
+# Join multi-line strings to one line
+joinline() {
+    str="$*"
+    echo ${str}
 }
 
+# Decode url string, such as convert "%2b" to "+"
 urldecode() {
     local tmpstr="$(cat - | sed -e 's/%/\\x/g')"
     printf "${tmpstr}\n"
 }
 
 # Get latest file by parsing web page
-# Needs variables:
-#   - $url, the parent path of url
-#   - $file_regexp, regexp of file name, used to get the last file
+# Arguments:
+#   $1, url of the web page
+#   $2, regexp of the file name, used to get the last file
 get_latest_file_by_parsing_web_page() {
+    local url=$1
+    local filereg=$2
+    
     # check variables
     if [[ -z "${url}" ]]; then
-        error "need variable ${url}"
+        error "need argument for variable \$url"
     fi
-    if [[ -z "${file_regexp}" ]]; then
-        error "need variable ${file_regexp}"
+    if [[ -z "${filereg}" ]]; then
+        error "need argument for variable \$filereg"
     fi
     
     # get web page content
@@ -217,7 +217,7 @@ get_latest_file_by_parsing_web_page() {
     local web_content=$(${get_page_cmd})
     
     # decode url and get latest file
-    local matched_files=$(echo "${web_content}" | urldecode | grep -o -P ${file_regexp})
+    local matched_files=$(echo "${web_content}" | urldecode | grep -o -P ${filereg})
     local latest_file=$(echo "${matched_files}" | sort -n | tail -1)
     if [[ -z "${latest_file}" ]]; then
         # get latest file failed
@@ -228,30 +228,74 @@ get_latest_file_by_parsing_web_page() {
 }
 
 # Generate PKGBUILD from template file
-# Needs variables:
-#   - $template_file, the template file, such as "PKGBUILD.template"
-#   - $template_values [optional], the key-values for template file,
+# Arguments:
+#   $1, the template file, such as "PKGBUILD.template"
+#   $2 [optional], the key-values for template file,
 #     multi key-values should be seprate by newline,
 #     such as "key1=value1
 #              key2=value2
 #              key3=value3"
-#   - $pkgbuild_file [optional], the output PKGBUILD file, default is in the same
+#   $3 [optional], the output PKGBUILD file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
-    msg "Starging generate_pkgbuild()..."
+    msg "Starting generate_pkgbuild()..."
+    local tplfile=$1
+    local keyvalues=$2
+    local pkgfile=$3
     
     # check variables
-    if [[ -z "${template_file}" ]]; then
-        error "need variable $template_file"
+    if [[ -z "${tplfile}" ]]; then
+        error "need argument for variable \$tplfile"
     fi
-    if [[ -z "${template_values}" ]]; then
-        warning "\$template_values is empty"
+    if [[ -z "${keyvalues}" ]]; then
+        warning "\$keyvalues is empty"
     fi
-    if [[ -z "${pkgbuild_file}" ]]; then
-        pkgbuild_file="${template_file%/*}/${PKGBUILD_SCRIPT}"
+    if [[ -z "${pkgfile}" ]]; then
+        pkgfile="$(dirname ${tplfile})/${PKGBUILD_SCRIPT}"
     fi
     
-    msg2 "Generate '${pkgbuild_file}' through template file '${template_file}'..."
+    # replace keys to values in template file to generate PKGBUILD
+    # file, if key is undefined, just replace to empty
+    msg2 "Generate '${pkgfile}' through template file '${tplfile}'..."
+    awk -v keyvalues_str="${keyvalues}" '
+BEGIN {
+    keyreg="(^.*){% *(\\w+) *%}(.*$)"
+
+    # build keyvalues array
+    split(keyvalues_str, lines, "\n")
+    for (i in lines) {
+        split(lines[i], arr, "=")
+        keyvalues[arr[1]]=arr[2]
+    }
+}
+
+keyreg {
+    tmpstr=$0
+    while (tmpstr ~ keyreg) {
+        key=gensub(keyreg, "\\2", "", tmpstr)
+        
+        if (key in keyvalues) {
+            value=keyvalues[key]
+            tmpstr=gensub(keyreg, "\\1" value "\\3", "g", tmpstr)
+            $0=gensub(keyreg, "\\1" value "\\3", "g")
+        } else {
+            # if there are undefined keys, just remove it only in
+            # tmpstr to avoid infinity loop
+            value=""
+            tmpstr=gensub(keyreg, "\\1" value "\\3", "g", tmpstr)
+            print "# WARNING: there are undefined keys in next line"
+        }
+    }
+    print
+}
+' ${tplfile} > ${pkgfile}
+    
+    # Check if all the template variables were replaced
+    local keys=$(listkey ${pkgfile})
+    if [ -n "${keys}" ]; then
+        warning "there are undefined keys in ${pkgfile}:"
+        msg2  "$(joinline ${keys})"
+    fi
 }
 
 ### Main
@@ -284,6 +328,7 @@ fi
 if [[ -z "${PKGBUILD_SCRIPT}" ]]; then
     PKGBUILD_SCRIPT='PKGBUILD'
 fi
+
 
 # Arguments
 arg_update_script="${PWD}/${UPDATE_SCRIPT}"
