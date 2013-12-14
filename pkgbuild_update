@@ -41,6 +41,27 @@ error() {
 	printf "==> $(gettext "ERROR:") ${mesg}\n" "$@" >&2
 }
 
+abort() {
+    error "$@"
+    exit 1
+}
+
+abort_if_var_empty() {
+    local arg=$1
+    local argname=$2
+    if [[ -z "${arg}" ]]; then
+        abort "$(gettext "variable \$%s is empty")" "${argname}"
+    fi
+}
+
+warn_if_var_empty() {
+    local arg=$1
+    local argname=$2
+    if [[ -z "${arg}" ]]; then
+        warning "$(gettext "variable \$%s is empty")" "${argname}"
+    fi
+}
+
 show_help() {
     printf "Description:\n"
     printf "    ${appname} is a helper tool for AUR package maintainer to automatic update PKGBUILD files\n"
@@ -68,8 +89,7 @@ show_version() {
 source_safe() {
 	shopt -u extglob
 	if ! source "$@"; then
-		error "$(gettext "Failed to source %s")" "$1"
-		exit 1
+		abort "$(gettext "Failed to source %s")" "$1"
 	fi
 	shopt -s extglob
 }
@@ -98,6 +118,7 @@ source_safe() {
 #   $2 [optional], file to save as
 download_file() {
 	local netfile=$1
+    local savefile=$2
 
 	local filepath=$(get_filepath "$netfile")
 	if [[ -n "$filepath" ]]; then
@@ -162,7 +183,7 @@ download_file() {
 listkey() {
     tplfile=$1
     if [ ! -e "${tplfile}" ]; then
-        error "$(gettext "file does not exist, %s")" "${tplfile}"
+        abort "$(gettext "file does not exist, %s")" "${tplfile}"
     fi
 
     awk '
@@ -208,13 +229,8 @@ get_latest_file_by_parsing_web_page() {
     local url=$1
     local filereg=$2
     
-    # check variables
-    if [[ -z "${url}" ]]; then
-        error "$(gettext "need argument for variable \$url")"
-    fi
-    if [[ -z "${filereg}" ]]; then
-        error "$(gettext "need argument for variable \$filereg")"
-    fi
+    abort_if_var_empty "${url}" "url"
+    abort_if_var_empty "${filereg}" "filereg"
     
     # get web page content
     local get_page_cmd=$(printf "${GET_PAGE_CMD}" ${url})
@@ -247,13 +263,9 @@ generate_pkgbuild() {
     local keyvalues=$2
     local pkgfile=$3
     
-    # check variables
-    if [[ -z "${tplfile}" ]]; then
-        error "$(gettext "need argument for variable \$tplfile")"
-    fi
-    if [[ -z "${keyvalues}" ]]; then
-        warning "$(gettext "\$keyvalues is empty")"
-    fi
+    # check arguments
+    abort_if_var_empty "${tplfile}" "tplfile"
+    warn_if_var_empty "${keyvalues}" "keyvalues"
     if [[ -z "${pkgfile}" ]]; then
         pkgfile="$(dirname ${tplfile})/${PKGBUILD_SCRIPT}"
     fi
@@ -294,7 +306,7 @@ keyreg {
     local keys=$(listkey ${pkgfile})
     if [ -n "${keys}" ]; then
         warning "$(gettext "there are undefined keys in %s:")" "${pkgfile}"
-        msg2  "$(joinline ${keys})"
+        msg2 "$(joinline ${keys})"
     fi
 }
 
@@ -345,7 +357,7 @@ while [ $# -gt 0 ]; do
         -h|--help)      arg_help=t; break ;;
         -v|--version)   arg_version=t; break ;;
         --)             shift; break ;;
-        *)              error "$(gettext "Unknown argument: %s")" "$@";;
+        *)              abort "$(gettext "Unknown argument: %s")" "$@" ;;
     esac        
 done
 
