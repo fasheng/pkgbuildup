@@ -17,25 +17,28 @@
 
 # This script uses quite a few external programs during its execution. You
 # need to have at least the following installed to function:
-#   coreutils, curl, find (findutils), gawk, grep, sed
+#   coreutils, curl, find (findutils), gawk, gettext, grep, sed
 
-### Functions
+### Basic Functions
 
 msg() {
-    printf "==> $*\n" >&2
+	local mesg=$1; shift
+	printf "==> ${mesg}\n" "$@" >&2
 }
 
 msg2() {
-    printf "  -> $*\n" >&2
+	local mesg=$1; shift
+	printf "  -> ${mesg}\n" "$@" >&2
 }
 
 warning() {
-    printf "==> WARNING: $*\n" >&2
+	local mesg=$1; shift
+	printf "==> $(gettext "WARNING:") ${mesg}\n" "$@" >&2
 }
 
 error() {
-    printf "==> ERROR: $*\n" >&2
-    exit 1
+	local mesg=$1; shift
+	printf "==> $(gettext "ERROR:") ${mesg}\n" "$@" >&2
 }
 
 show_help() {
@@ -65,32 +68,34 @@ show_version() {
 source_safe() {
 	shopt -u extglob
 	if ! source "$@"; then
-		error "Failed to source $1"
+		error "$(gettext "Failed to source %s")" "$1"
 		exit 1
 	fi
 	shopt -s extglob
 }
 
-# Get file parent directory path
-# For example: "/usr/bin/bash" -> "/usr/bin"
-get_filepath() {
-	local path=$1
-    filepath=${path%/*}
-	printf "%s\n" "${filepath}"
-}
+# TODO
+# # Get file parent directory path
+# # For example: "/usr/bin/bash" -> "/usr/bin"
+# get_filepath() {
+# 	local path=$1
+#     filepath=${path%/*}
+# 	printf "%s\n" "${filepath}"
+# }
 
-# Get file name from path
-# For example: "/usr/bin/bash" -> "bash"
-get_filename() {
-	local path=$1
-    filename=${path##*/}
-	printf "%s\n" "${filename}"
-}
+# # Get file name from path
+# # For example: "/usr/bin/bash" -> "bash"
+# get_filename() {
+# 	local path=$1
+#     filename=${path##*/}
+# 	printf "%s\n" "${filename}"
+# }
 
 
 # Download file
 # Arguments:
 #   $1, file url
+#   $2 [optional], file to save as
 download_file() {
 	local netfile=$1
 
@@ -157,7 +162,7 @@ download_file() {
 listkey() {
     tplfile=$1
     if [ ! -e "${tplfile}" ]; then
-        error "file does not exist, ${tplfile}"
+        error "$(gettext "file does not exist, %s")" "${tplfile}"
     fi
 
     awk '
@@ -186,8 +191,7 @@ END {
 
 # Join multi-line strings to one line
 joinline() {
-    str="$*"
-    echo ${str}
+    echo $*
 }
 
 # Decode url string, such as convert "%2b" to "+"
@@ -199,17 +203,17 @@ urldecode() {
 # Get latest file by parsing web page
 # Arguments:
 #   $1, url of the web page
-#   $2, regexp of the file name, used to get the last file
+#   $2, regexp of the file name, used by "grep -oP" to get the last file
 get_latest_file_by_parsing_web_page() {
     local url=$1
     local filereg=$2
     
     # check variables
     if [[ -z "${url}" ]]; then
-        error "need argument for variable \$url"
+        error "$(gettext "need argument for variable \$url")"
     fi
     if [[ -z "${filereg}" ]]; then
-        error "need argument for variable \$filereg"
+        error "$(gettext "need argument for variable \$filereg")"
     fi
     
     # get web page content
@@ -238,17 +242,17 @@ get_latest_file_by_parsing_web_page() {
 #   $3 [optional], the output PKGBUILD file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
-    msg "Starting generate_pkgbuild()..."
+    msg "$(gettext "Starting generate_pkgbuild()...")"
     local tplfile=$1
     local keyvalues=$2
     local pkgfile=$3
     
     # check variables
     if [[ -z "${tplfile}" ]]; then
-        error "need argument for variable \$tplfile"
+        error "$(gettext "need argument for variable \$tplfile")"
     fi
     if [[ -z "${keyvalues}" ]]; then
-        warning "\$keyvalues is empty"
+        warning "$(gettext "\$keyvalues is empty")"
     fi
     if [[ -z "${pkgfile}" ]]; then
         pkgfile="$(dirname ${tplfile})/${PKGBUILD_SCRIPT}"
@@ -256,7 +260,7 @@ generate_pkgbuild() {
     
     # replace keys to values in template file to generate PKGBUILD
     # file, if key is undefined, just replace to empty
-    msg2 "Generate '${pkgfile}' through template file '${tplfile}'..."
+    msg2 "$(gettext "Generate '%s' through template file '%s'...")" "${pkgfile}" "${tplfile}"
     awk -v keyvalues_str="${keyvalues}" '
 BEGIN {
     keyreg="(^.*){% *(\\w+) *%}(.*$)"
@@ -273,18 +277,14 @@ keyreg {
     tmpstr=$0
     while (tmpstr ~ keyreg) {
         key=gensub(keyreg, "\\2", "", tmpstr)
-        
         if (key in keyvalues) {
             value=keyvalues[key]
-            tmpstr=gensub(keyreg, "\\1" value "\\3", "g", tmpstr)
             $0=gensub(keyreg, "\\1" value "\\3", "g")
-        } else {
-            # if there are undefined keys, just remove it only in
-            # tmpstr to avoid infinity loop
-            value=""
-            tmpstr=gensub(keyreg, "\\1" value "\\3", "g", tmpstr)
-            print "# WARNING: there are undefined keys in next line"
         }
+
+        # no matter there are undefined keys, just
+        # remove it in tmpstr to avoid infinity loop
+        tmpstr=gensub(keyreg, "\\1\\3", "g", tmpstr)
     }
     print
 }
@@ -293,10 +293,12 @@ keyreg {
     # Check if all the template variables were replaced
     local keys=$(listkey ${pkgfile})
     if [ -n "${keys}" ]; then
-        warning "there are undefined keys in ${pkgfile}:"
+        warning "$(gettext "there are undefined keys in %s:")" "${pkgfile}"
         msg2  "$(joinline ${keys})"
     fi
 }
+
+### Help Functions for Target Package
 
 ### Main
 appname="pkgbuild_update"
@@ -343,7 +345,7 @@ while [ $# -gt 0 ]; do
         -h|--help)      arg_help=t; break ;;
         -v|--version)   arg_version=t; break ;;
         --)             shift; break ;;
-        *)              error "Unknown argument: $@" ;;
+        *)              error "$(gettext "Unknown argument: %s")" "$@";;
     esac        
 done
 
