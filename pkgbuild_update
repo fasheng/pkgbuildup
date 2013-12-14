@@ -181,8 +181,8 @@ get_downloadclient() {
 # Download file
 # Arguments:
 #   - $1, file url
-#   - $2 [optional], file name to save as, default value is the
-#     base name of file url
+#   - $2 [optional], file to save as, default value is the base name
+#     of file url
 # [copy from makepkg with some changes]
 download_file() {
 	local url=$1
@@ -294,7 +294,7 @@ get_latest_file_by_parsing_web_page() {
     abort_if_var_empty "${url}" "url"
     abort_if_var_empty "${filereg}" "filereg"
     msg2 "$(gettext "  url: %s")" "${url}"
-    msg2 "$(gettext "  file name regexp: %s")" "${filereg}"
+    msg2 "$(gettext "  file regexp: %s")" "${filereg}"
     
     # get web page content
     local get_page_cmd=$(printf "${GET_PAGE_CMD}" ${url})
@@ -376,9 +376,9 @@ keyreg {
 }
 
 generate_checksum() {
-	msg "$(gettext "Generating checksums for source files...")"
-    local file=$0
+    local file=$1
     local integ=${INTEGRITY_CHECK}
+	msg2 "$(gettext "Generating checksum for file: %s")" ${file}
     
 	if ! type -p openssl >/dev/null; then
 		error "$(gettext "Cannot find the command '%s'")" "openssl"
@@ -441,7 +441,7 @@ do_update_package_in_source_site() {
         local filename_key="$(echo $info | awk -F '::' '{print $1}')"
         local checksum_key="$(echo $info | awk -F '::' '{print $2}')"
         local url="$(echo $info | awk -F '::' '{print $3}')"
-        local filereg="$(echo $d | awk -F '::' '{print $4}')"
+        local filereg="$(echo $info | awk -F '::' '{print $4}')"
         
         local latestfn
         latestfn=$(get_latest_file_by_parsing_web_page "${url}" "${filereg}") || return 1
@@ -476,7 +476,6 @@ do_update_package_in_source_site() {
         local pkgdir="$(dirname ${tplfile})"
         (cd "${pkgdir}"; makepkg -f)
         if (( $? )); then
-            error "$(gettext "Run makepkg failed in directory '%s'")" "${pkgdir}"
             return 1
         fi
     fi
@@ -492,7 +491,6 @@ update_package_in_source_site() {
         log_success "${tplfile}"
     fi
 }
-
 
 ### Main
 appname="pkgbuild_update"
