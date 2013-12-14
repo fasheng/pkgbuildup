@@ -32,8 +32,17 @@ msg2() {
 }
 
 warning() {
-	local mesg=$1; shift
-	printf "==> $(gettext "WARNING:") ${mesg}\n" "$@" >&2
+    if [ -z "${IGNORE_WARN}" ]; then
+	    local mesg=$1; shift
+	    printf "==> $(gettext "WARNING:") ${mesg}\n" "$@" >&2
+    fi
+}
+
+warning2() {
+    if [ -z "${IGNORE_WARN}" ]; then
+	    local mesg=$1; shift
+	    printf "  -> $(gettext "WARNING:") ${mesg}\n" "$@" >&2
+    fi
 }
 
 error() {
@@ -43,6 +52,7 @@ error() {
 
 abort() {
     error "$@"
+    error "$(gettext "Aborting...")"
     exit 1
 }
 
@@ -112,30 +122,73 @@ source_safe() {
 # }
 
 
+# Extract the protocol from a source entry - return "local" for local sources
+# copy from makepkg
+get_protocol() {
+	if [[ $1 = *://* ]]; then
+		# strip leading filename
+		local proto="${1##*::}"
+		printf "%s\n" "${proto%%://*}"
+	elif [[ $1 = *lp:* ]]; then
+		local proto="${1##*::}"
+		printf "%s\n" "${proto%%lp:*}"
+	else
+		printf "%s\n" local
+	fi
+}
+
+# copy from makepkg
+get_downloadclient() {
+	local proto=$1
+
+	# loop through DOWNLOAD_AGENTS variable looking for protocol
+	local i
+	for i in "${DLAGENTS[@]}"; do
+		local handler="${i%%::*}"
+		if [[ $proto = "$handler" ]]; then
+			local agent="${i##*::}"
+			break
+		fi
+	done
+
+	# if we didn't find an agent, return an error
+	if [[ -z $agent ]]; then
+		abort "$(gettext "Unknown download protocol: %s")" "$proto"
+	fi
+
+	# ensure specified program is installed
+	local program="${agent%% *}"
+	if [[ ! -x $program ]]; then
+		local baseprog="${program##*/}"
+		abort "$(gettext "The download program %s is not installed.")" "$baseprog"
+	fi
+
+	printf "%s\n" "$agent"
+}
+
 # Download file
 # Arguments:
 #   $1, file url
-#   $2 [optional], file to save as
+#   $2 [optional], file name to save as, default value is the
+#     base name of file url
+# copy from makepkg with some changes
 download_file() {
-	local netfile=$1
-    local savefile=$2
+	local url=$1
+    local filename=$2
+    
+    # check arguments
+    if [ -z "${filename}" ]; then
+        filename="$(basename ${url})"
+    fi
 
-	local filepath=$(get_filepath "$netfile")
-	if [[ -n "$filepath" ]]; then
-		msg2 "$(gettext "Found %s")" "${filepath##*/}"
-		rm -f "$srcdir/${filepath##*/}"
-		ln -s "$filepath" "$srcdir/"
-		return
-	fi
-
-	local proto=$(get_protocol "$netfile")
+	local proto=$(get_protocol "$url")
 
 	# find the client we should use for this URL
 	local dlcmd
 	dlcmd=$(get_downloadclient "$proto") || exit $?
 
-	local filename=$(get_filename "$netfile")
-	local url=$(get_url "$netfile")
+	# local filename=$(get_filename "$url")
+	# local url=$(get_url "$url")
 
 	if [[ $proto = "scp" ]]; then
 		# scp downloads should not pass the protocol in the url
@@ -163,18 +216,13 @@ download_file() {
 	eval "$dlcmd || ret=\$?"
 	if (( ret )); then
 		[[ ! -s $dlfile ]] && rm -f -- "$dlfile"
-		error "$(gettext "Failure while downloading %s")" "$filename"
-		plain "$(gettext "Aborting...")"
-		exit 1
+		abort "$(gettext "Failure while downloading %s")" "$filename"
 	fi
 
 	# rename the temporary download file to the final destination
 	if [[ $dlfile != "$filename" ]]; then
-		mv -f "$SRCDEST/$dlfile" "$SRCDEST/$filename"
+		mv -f "$dlfile" "$filename"
 	fi
-
-	rm -f "$srcdir/$filename"
-	ln -s "$SRCDEST/$filename" "$srcdir/"
 }
 
 # List keys in template file
@@ -234,7 +282,7 @@ get_latest_file_by_parsing_web_page() {
     
     # get web page content
     local get_page_cmd=$(printf "${GET_PAGE_CMD}" ${url})
-    local web_content=$(${get_page_cmd})
+    local web_content=$(eval "${get_page_cmd}")
     
     # decode url and get latest file
     local matched_files=$(echo "${web_content}" | urldecode | grep -o -P ${filereg})
@@ -258,7 +306,7 @@ get_latest_file_by_parsing_web_page() {
 #   $3 [optional], the output PKGBUILD file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
-    msg2 "$(gettext "starting generate_pkgbuild()...")"
+    msg2 "$(gettext "Starting generate_pkgbuild()...")"
     local tplfile=$1
     local keyvalues=$2
     local pkgfile=$3
@@ -272,7 +320,8 @@ generate_pkgbuild() {
     
     # replace keys to values in template file to generate PKGBUILD
     # file, if key is undefined, just replace to empty
-    msg2 "$(gettext "generate '%s' through template file '%s'...")" "${pkgfile}" "${tplfile}"
+    msg2 "$(gettext "Key-values: %s")" "$(joinline ${keyvalues})"
+    msg2 "$(gettext "Generate '%s' through template file '%s'")" "${pkgfile}" "${tplfile}"
     awk -v keyvalues_str="${keyvalues}" '
 BEGIN {
     keyreg="(^.*){% *(\\w+) *%}(.*$)"
@@ -306,11 +355,55 @@ keyreg {
     local keys=$(listkey ${pkgfile})
     if [ -n "${keys}" ]; then
         warning "$(gettext "there are undefined keys in %s:")" "${pkgfile}"
-        msg2 "$(joinline ${keys})"
+        warning2 "$(joinline ${keys})"
     fi
 }
 
 ### Help Functions for Target Package
+
+# Arguments:
+#   $1, template file
+#   $2, url of the web page which package file place in
+#   $3, file name regexp, used by "grep -oP"
+#   $4, package version regexp, used by "grep -oP"
+update_package_in_source_site() {
+    msg "$(gettext "Starting update_package_in_source_site()...")"
+    local tplfile=$1
+    local url=$2
+    local filereg=$3
+    local pkgverreg=$4
+    local keyvalues=""
+    
+    abort_if_var_empty "${tplfile}" "tplfile"
+    abort_if_var_empty "${url}" "url"
+    abort_if_var_empty "${filereg}" "filereg"
+    abort_if_var_empty "${pkgverreg}" "pkgverreg"
+    msg2 "$(gettext "Updating %s...")" "${tplfile}"
+    
+    # get latest package name
+    msg2 "$(gettext "Parsing web page to get latest package name: %s")" "${url}"
+    local latest_file=$(get_latest_file_by_parsing_web_page "${url}" "${filereg}") || \
+        { warning "$(gettext "update %s failed, skip it")" "${tplfile}"; return; }
+    abort_if_var_empty "${latest_file}" "latest_file"
+    keyvalues=$(printf "%s\n" "filename=${latest_file}")
+    
+    # get package version
+    local pkgver=$(echo "${latest_file}" | grep -o -P ${pkgverreg} | tail -1)
+    keyvalues=$(printf "%s\n%s" "${keyvalues}" "pkgver=${pkgver}")
+    
+    # download latest package
+    local fileurl="${url}/${latest_file}"
+    local savefile="$(dirname ${tplfile})/${latest_file}"
+    download_file ${fileurl} ${savefile}
+    
+    # generate integrity checks 
+    local md5=$(md5sum ${savefile} | awk '{print $1}')
+    keyvalues=$(printf "%s\n%s" "${keyvalues}" "md5=${md5}")
+    
+    # generate new PKGBUILD
+    generate_pkgbuild "${tplfile}" "${keyvalues}"
+}
+
 
 ### Main
 appname="pkgbuild_update"
@@ -320,6 +413,7 @@ version="0.1"
 shopt -s extglob
 
 # Default variables, can be overwrite
+IGNORE_WARN=""
 
 if [[ -z "${GET_PAGE_CMD}" ]]; then
     GET_PAGE_CMD='/usr/bin/curl -sfL --retry 3 --retry-delay 3 %s'
