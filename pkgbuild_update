@@ -19,7 +19,7 @@
 # need to have at least the following installed to function:
 #   coreutils, curl, find (findutils), gawk, gettext, grep, sed
 
-### Basic Functions
+### Basic functions
 
 msg() {
 	local mesg=$1; shift
@@ -63,6 +63,25 @@ warn_if_var_empty() {
     if [[ -z "${arg}" ]]; then
         warning "$(gettext "variable \$%s is empty")" "${argname}"
     fi
+}
+
+first_log="t"
+log() {
+	local mesg=$1; shift
+    if [ -n "${first_log}" ]; then
+	    printf "${mesg}\n" "$@" >${LOGFILE}
+        first_log=""
+    else
+	    printf "${mesg}\n" "$@" >>${LOGFILE}
+    fi
+}
+
+log_success() {
+    log "$(gettext "[SUCCESS]  ")$@"
+}
+
+log_failed() {
+    log "$(gettext "[FAILED]   ")$@"
 }
 
 show_help() {
@@ -274,8 +293,8 @@ get_latest_file_by_parsing_web_page() {
     
     abort_if_var_empty "${url}" "url"
     abort_if_var_empty "${filereg}" "filereg"
-    msg2 "  url: ${url}"
-    msg2 "  regexp: ${filereg}"
+    msg2 "$(gettext "  url: %s")" "${url}"
+    msg2 "$(gettext "  file name regexp: %s")" "${filereg}"
     
     # get web page content
     local get_page_cmd=$(printf "${GET_PAGE_CMD}" ${url})
@@ -378,12 +397,12 @@ generate_checksum() {
 	printf "%s" "${sum}"
 }
 
-### Helper Functions for Target Package
+### Helper functions for target package, could use directly
 
 # Update package which living in other linux distro source site, and
 # get the latest package file name by parsing the web page
 # Need variables:
-#   - $FILE_DATA, a array with useful information to get the latest
+#   - $FILE_INFO, a array with useful information to get the latest
 #     package file name, echo element own four fields which were
 #     separate by "::".
 #     The element format looks like as:
@@ -396,29 +415,32 @@ generate_checksum() {
 #       - file_regexp, the regexp to get the latest package file name, will
 #         be used by command "grep -o -P".
 #     Here is an example:
-#       FILE_DATA=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
+#       FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
 #                  "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
 # Arguments:
 #   - $1, template file
 #   - $2, package version regexp, used by "grep -o -P" in the first
 #     package file name
-update_package_in_source_site() {
+#   - $3 [optional], if value is "true", will run makepkg after
+#     updating, default is "true"
+do_update_package_in_source_site() {
     msg "$(gettext "Updating package which living in source site...")"
     local tplfile=$1
     local pkgverreg=$2
     local keyvalues=""
+    local makepkg="${3:-true}"
     
-    abort_if_var_empty "${FILE_DATA[0]}" "FILE_DATA"
+    abort_if_var_empty "${FILE_INFO[0]}" "FILE_INFO"
     abort_if_var_empty "${tplfile}" "tplfile"
     abort_if_var_empty "${pkgverreg}" "pkgverreg"
     msg2 "$(gettext "Updating %s...")" "${tplfile}"
     
-    # parse variable FILE_DATA to get each package file's latest name and check-sum
+    # parse variable FILE_INFO to get each package file's latest name and check-sum
     local mainfn=""
-    for d in "${FILE_DATA[@]}"; do
-        local filename_key="$(echo $d | awk -F '::' '{print $1}')"
-        local checksum_key="$(echo $d | awk -F '::' '{print $2}')"
-        local url="$(echo $d | awk -F '::' '{print $3}')"
+    for info in "${FILE_INFO[@]}"; do
+        local filename_key="$(echo $info | awk -F '::' '{print $1}')"
+        local checksum_key="$(echo $info | awk -F '::' '{print $2}')"
+        local url="$(echo $info | awk -F '::' '{print $3}')"
         local filereg="$(echo $d | awk -F '::' '{print $4}')"
         
         local latestfn
@@ -448,6 +470,27 @@ update_package_in_source_site() {
     
     # generate new PKGBUILD
     generate_pkgbuild "${tplfile}" "${keyvalues}"
+    
+    # makepkg
+    if [ "${makepkg}" = "true" ]; then
+        local pkgdir="$(dirname ${tplfile})"
+        (cd "${pkgdir}"; makepkg -f)
+        if (( $? )); then
+            error "$(gettext "Run makepkg failed in directory '%s'")" "${pkgdir}"
+            return 1
+        fi
+    fi
+}
+
+# Wrapper for update_package_in_source_site()
+update_package_in_source_site() {
+    local tplfile=$1
+    do_update_package_in_source_site "$@"
+    if (( $? )); then
+        log_failed "${tplfile}"
+    else
+        log_success "${tplfile}"
+    fi
 }
 
 
@@ -460,6 +503,7 @@ shopt -s extglob
 
 # Default variables, can be overwrite
 IGNORE_WARN=""
+LOGFILE="${appname}_result.log"
 
 # File integrity checks to use. Valid: md5, sha1, sha256, sha384, sha512
 INTEGRITY_CHECK="md5"
