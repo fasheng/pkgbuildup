@@ -251,14 +251,14 @@ get_latest_file_by_parsing_web_page() {
 # Arguments:
 #   $1, the template file, such as "PKGBUILD.template"
 #   $2 [optional], the key-values for template file,
-#     multi key-values should be seprate by newline,
-#     such as "key1=value1
-#              key2=value2
-#              key3=value3"
+#     and echo key-value own one line, such as:
+#       "key1=value1
+#        key2=value2
+#        key3=value3"
 #   $3 [optional], the output PKGBUILD file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
-    msg "$(gettext "Starting generate_pkgbuild()...")"
+    msg2 "$(gettext "starting generate_pkgbuild()...")"
     local tplfile=$1
     local keyvalues=$2
     local pkgfile=$3
@@ -272,7 +272,7 @@ generate_pkgbuild() {
     
     # replace keys to values in template file to generate PKGBUILD
     # file, if key is undefined, just replace to empty
-    msg2 "$(gettext "Generate '%s' through template file '%s'...")" "${pkgfile}" "${tplfile}"
+    msg2 "$(gettext "generate '%s' through template file '%s'...")" "${pkgfile}" "${tplfile}"
     awk -v keyvalues_str="${keyvalues}" '
 BEGIN {
     keyreg="(^.*){% *(\\w+) *%}(.*$)"
