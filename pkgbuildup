@@ -399,8 +399,9 @@ generate_checksum() {
 
 ### Helper functions for target package, could use directly
 
-# Update package which living in other linux distro source site, and
-# get the latest package file name by parsing the web page
+# Update PKGBUILD which package file living in other linux
+# distribution's source site, and get the latest package file name by
+# parsing the web page
 # Need variables:
 #   - $FILE_INFO, a array with useful information to get the latest
 #     package file name, echo element own four fields which were
@@ -409,11 +410,11 @@ generate_checksum() {
 #       "filename_key::checksum_key::url::file_regexp"
 #     Descripion of the format:
 #       - filename_key, the key name in template file corresponding to the
-#         package file name,
+#         package file name
 #       - checksum_key, the check-sum's key name for the package file
 #       - url, the url of the web page which the package file place in
 #       - file_regexp, the regexp to get the latest package file name, will
-#         be used by command "grep -o -P".
+#         be used by command "grep -o -P"
 #     Here is an example:
 #       FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
 #                  "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
@@ -423,7 +424,7 @@ generate_checksum() {
 #     package file name
 #   - $3 [optional], if value is "true", will run makepkg after
 #     updating, default is "true"
-do_update_package_in_source_site() {
+do_update_pkgbuild_for_source_site() {
     msg "$(gettext "Updating package which living in source site...")"
     local tplfile=$1
     local pkgverreg=$2
@@ -481,10 +482,10 @@ do_update_package_in_source_site() {
     fi
 }
 
-# Wrapper for update_package_in_source_site()
-update_package_in_source_site() {
+# Wrapper for do_update_pkgbuild_for_source_site()
+update_pkgbuild_for_source_site() {
     local tplfile=$1
-    do_update_package_in_source_site "$@"
+    do_update_pkgbuild_for_source_site "$@"
     if (( $? )); then
         log_failed "${tplfile}"
     else
