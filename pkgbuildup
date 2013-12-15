@@ -493,7 +493,7 @@ update_package_in_source_site() {
 }
 
 ### Main
-appname="pkgbuild_update"
+appname="pkgbuildup"
 version="0.1"
 
 # config bash
@@ -521,7 +521,7 @@ if [[ -z "${DLAGENTS}" ]]; then
 fi
 
 if [[ -z "${UPDATE_SCRIPT}" ]]; then
-    UPDATE_SCRIPT='PKGBUILD_UPDATE'
+    UPDATE_SCRIPT='PKGBUILDUP'
 fi
 
 if [[ -z "${PKGBUILD_SCRIPT}" ]]; then
