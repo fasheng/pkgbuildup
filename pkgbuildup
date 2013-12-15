@@ -89,13 +89,13 @@ show_help() {
     printf "    ${appname} is a helper tool for AUR package maintainer to automatic update PKGBUILD files\n"
     printf "\n"
     printf "Usage:\n"
-    printf "    ${appname} [-p] [-l listkey] [-h help] [-v version]\n"
+    printf "    ${appname} [-p] [-l listvar] [-h help] [-v version]\n"
     printf "\n"
     printf "Options:\n"
     printf "    -p <file>\n"
     printf "        Use an alternate update script (instead of '${UPDATE_SCRIPT}')\n"
-    printf "    -l, --listkey <file>\n"
-    printf "        List keys in a template file\n"
+    printf "    -l, --listvar <file>\n"
+    printf "        List variables in a template file\n"
     printf "    -h, --help\n"
     printf "        Prints help message\n"
     printf "    -v, --version\n"
@@ -165,14 +165,16 @@ get_downloadclient() {
 
 	# if we didn't find an agent, return an error
 	if [[ -z $agent ]]; then
-		abort "$(gettext "Unknown download protocol: %s")" "$proto"
+		error "$(gettext "Unknown download protocol: %s")" "$proto"
+        return 1
 	fi
 
 	# ensure specified program is installed
 	local program="${agent%% *}"
 	if [[ ! -x $program ]]; then
 		local baseprog="${program##*/}"
-		abort "$(gettext "The download program %s is not installed.")" "$baseprog"
+		error "$(gettext "The download program %s is not installed.")" "$baseprog"
+        return 1
 	fi
 
 	printf "%s\n" "$agent"
@@ -228,7 +230,8 @@ download_file() {
 	eval "$dlcmd || ret=\$?"
 	if (( ret )); then
 		[[ ! -s $dlfile ]] && rm -f -- "$dlfile"
-		abort "$(gettext "Failure while downloading %s")" "$filename"
+		error "$(gettext "Failure while downloading %s")" "$filename"
+        return 1
 	fi
 
 	# rename the temporary download file to the final destination
@@ -237,10 +240,10 @@ download_file() {
 	fi
 }
 
-# List keys in template file
+# List variables in template file
 # Arguments:
 #   - $1, the template file
-listkey() {
+listvar() {
     tplfile=$1
     if [ ! -e "${tplfile}" ]; then
         abort "$(gettext "file does not exist, %s")" "${tplfile}"
@@ -248,23 +251,23 @@ listkey() {
 
     awk '
 BEGIN {
-    keyreg="(^.*){% *(\\w+) *%}(.*$)"
+    varreg="(^.*){% *(\\w+) *%}(.*$)"
 }
 
-keyreg {
-    while ($0 ~ keyreg) {
-        filename_key=gensub(keyreg, "\\2", "")
-        $0=gensub(keyreg, "\\1\\3", "")
-        if (filename_key in keys == 0) {
-            keys[filename_key]=l++
+varreg {
+    while ($0 ~ varreg) {
+        var=gensub(varreg, "\\2", "")
+        $0=gensub(varreg, "\\1\\3", "")
+        if (var in vars == 0) {
+            vars[var]=l++
         }
     }
 }
 
 END {
     PROCINFO["sorted_in"] = "@val_num_asc"
-    for (filename_key in keys) {
-        print filename_key
+    for (var in vars) {
+        print var
     }
 }
 ' ${tplfile}
@@ -314,64 +317,64 @@ get_latest_file_by_parsing_web_page() {
 # Generate PKGBUILD from template file
 # Arguments:
 #   - $1, the template file, such as "PKGBUILD.template"
-#   - $2 [optional], the key-values for template file,
-#     and echo key-value own one line, such as:
-#       "key1=value1
-#        key2=value2
-#        key3=value3"
+#   - $2 [optional], the variable values for template file,
+#     and echo variable own one line, such as:
+#       "var1=value1
+#        var2=value2
+#        var3=value3"
 #   - $3 [optional], the output PKGBUILD file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
     msg2 "$(gettext "Generating PKGBUILD from template file...")"
     local tplfile=$1
-    local keyvalues=$2
+    local varvalues=$2
     local pkgfile=$3
     
     # check arguments
     abort_if_var_empty "${tplfile}" "tplfile"
-    warn_if_var_empty "${keyvalues}" "keyvalues"
+    warn_if_var_empty "${varvalues}" "varvalues"
     if [[ -z "${pkgfile}" ]]; then
         pkgfile="$(dirname ${tplfile})/${PKGBUILD_SCRIPT}"
     fi
     
-    # replace keys to values in template file to generate PKGBUILD
-    # file, if filename_key is undefined, just replace to empty
-    msg2 "$(gettext "Key-values: %s")" "$(joinline ${keyvalues})"
+    # replace variables to values in template file to generate PKGBUILD
+    # file, if variable is undefined, just replace to empty
+    msg2 "$(gettext "Variable values: %s")" "$(joinline ${varvalues})"
     msg2 "$(gettext "Generate '%s' through template file '%s'")" "${pkgfile}" "${tplfile}"
-    awk -v keyvalues_str="${keyvalues}" '
+    awk -v varvalues_str="${varvalues}" '
 BEGIN {
-    keyreg="(^.*){% *(\\w+) *%}(.*$)"
+    varreg="(^.*){% *(\\w+) *%}(.*$)"
 
-    # build keyvalues array
-    split(keyvalues_str, lines, "\n")
+    # build varvalues array
+    split(varvalues_str, lines, "\n")
     for (i in lines) {
         split(lines[i], arr, "=")
-        keyvalues[arr[1]]=arr[2]
+        varvalues[arr[1]]=arr[2]
     }
 }
 
-keyreg {
+varreg {
     tmpstr=$0
-    while (tmpstr ~ keyreg) {
-        filename_key=gensub(keyreg, "\\2", "", tmpstr)
-        if (filename_key in keyvalues) {
-            value=keyvalues[filename_key]
-            $0=gensub(keyreg, "\\1" value "\\3", "g")
+    while (tmpstr ~ varreg) {
+        var=gensub(varreg, "\\2", "", tmpstr)
+        if (var in varvalues) {
+            value=varvalues[var]
+            $0=gensub(varreg, "\\1" value "\\3", "g")
         }
 
-        # no matter there are undefined keys, just
+        # no matter there are undefined variables, just
         # remove it in tmpstr to avoid infinity loop
-        tmpstr=gensub(keyreg, "\\1\\3", "g", tmpstr)
+        tmpstr=gensub(varreg, "\\1\\3", "g", tmpstr)
     }
     print
 }
 ' ${tplfile} > ${pkgfile}
     
     # Check if all the template variables were replaced
-    local keys=$(listkey ${pkgfile})
-    if [ -n "${keys}" ]; then
-        warning "$(gettext "there are undefined keys in %s: %s")" \
-            "${pkgfile}" "$(joinline ${keys})"
+    local vars=$(listvar ${pkgfile})
+    if [ -n "${vars}" ]; then
+        warning "$(gettext "there are undefined variables in %s: %s")" \
+            "${pkgfile}" "$(joinline ${vars})"
     fi
 }
 
@@ -407,13 +410,13 @@ generate_checksum() {
 #     package file name, echo element own four fields which were
 #     separate by "::".
 #     The element format looks like as:
-#       "filename_key::checksum_key::url::file_regexp"
+#       "filename_var::checksum_var::url::filename_regexp"
 #     Descripion of the format:
-#       - filename_key, the key name in template file corresponding to the
+#       - filename_var, the variable name in template file corresponding to the
 #         package file name
-#       - checksum_key, the check-sum's key name for the package file
+#       - checksum_var, the check-sum's variable name for the package file
 #       - url, the url of the web page which the package file place in
-#       - file_regexp, the regexp to get the latest package file name, will
+#       - filename_regexp, the regexp to get the latest package file name, will
 #         be used by command "grep -o -P"
 #     Here is an example:
 #       FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
@@ -428,7 +431,7 @@ do_update_pkgbuild_for_source_site() {
     msg "$(gettext "Updating package which living in source site...")"
     local tplfile=$1
     local pkgverreg=$2
-    local keyvalues=""
+    local varvalues=""          # values for template variable
     local makepkg="${3:-true}"
     
     abort_if_var_empty "${FILE_INFO[0]}" "FILE_INFO"
@@ -439,14 +442,14 @@ do_update_pkgbuild_for_source_site() {
     # parse variable FILE_INFO to get each package file's latest name and check-sum
     local mainfn=""
     for info in "${FILE_INFO[@]}"; do
-        local filename_key="$(echo $info | awk -F '::' '{print $1}')"
-        local checksum_key="$(echo $info | awk -F '::' '{print $2}')"
+        local filename_var="$(echo $info | awk -F '::' '{print $1}')"
+        local checksum_var="$(echo $info | awk -F '::' '{print $2}')"
         local url="$(echo $info | awk -F '::' '{print $3}')"
         local filereg="$(echo $info | awk -F '::' '{print $4}')"
         
         local latestfn
         latestfn=$(get_latest_file_by_parsing_web_page "${url}" "${filereg}") || return 1
-        keyvalues=$(printf "%s\n%s" "${keyvalues}" "${filename_key}=${latestfn}")
+        varvalues=$(printf "%s\n%s" "${varvalues}" "${filename_var}=${latestfn}")
         
         # download latest package file
         local fileurl="${url}/${latestfn}"
@@ -456,7 +459,7 @@ do_update_pkgbuild_for_source_site() {
         # generate integrity checks
         local checksum
         checksum=$(generate_checksum ${savefile}) || return 1
-        keyvalues=$(printf "%s\n%s" "${keyvalues}" "${checksum_key}=${checksum}")
+        varvalues=$(printf "%s\n%s" "${varvalues}" "${checksum_var}=${checksum}")
         
         # set first package as the main package, and mark its latest
         # file name to get package version later
@@ -467,10 +470,10 @@ do_update_pkgbuild_for_source_site() {
     
     # get package version
     local pkgver=$(echo "${mainfn}" | grep -o -P ${pkgverreg} | tail -1)
-    keyvalues=$(printf "%s\n%s" "${keyvalues}" "pkgver=${pkgver}")
+    varvalues=$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")
     
     # generate new PKGBUILD
-    generate_pkgbuild "${tplfile}" "${keyvalues}"
+    generate_pkgbuild "${tplfile}" "${varvalues}"
     
     # makepkg
     if [ "${makepkg}" = "true" ]; then
@@ -532,14 +535,14 @@ fi
 
 # Arguments
 arg_update_script="${PWD}/${UPDATE_SCRIPT}"
-arg_listkey=""
+arg_listvar=""
 arg_help=""
 arg_version=""
 
 while [ $# -gt 0 ]; do
     case $1 in
         -p)             arg_update_script="$2"; shift; break ;;
-        -l|--listkey)   arg_listkey="$2"; shift; break ;;
+        -l|--listvar)   arg_listvar="$2"; shift; break ;;
         -h|--help)      arg_help=t; break ;;
         -v|--version)   arg_version=t; break ;;
         --)             shift; break ;;
@@ -557,9 +560,9 @@ if [ "${arg_version}" ]; then
     show_version
 fi
 
-# list keys in template file
-if [ "${arg_listkey}" ]; then
-    listkey ${arg_listkey}
+# list vars in template file
+if [ "${arg_listvar}" ]; then
+    listvar ${arg_listvar}
     exit
 fi
 
