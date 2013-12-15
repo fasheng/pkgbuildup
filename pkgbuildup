@@ -359,7 +359,7 @@ varreg {
         var=gensub(varreg, "\\2", "", tmpstr)
         if (var in varvalues) {
             value=varvalues[var]
-            $0=gensub(varreg, "\\1" value "\\3", "g")
+            $0=gensub("{% *"var" *%}", value, "g")
         }
 
         # no matter there are undefined variables, just
@@ -478,7 +478,7 @@ do_update_pkgbuild_for_source_site() {
     # makepkg
     if [ "${makepkg}" = "true" ]; then
         local pkgdir="$(dirname ${tplfile})"
-        (cd "${pkgdir}"; makepkg -f)
+        (cd "${pkgdir}"; rm -rf src pkg; makepkg -f)
         if (( $? )); then
             return 1
         fi
@@ -507,7 +507,7 @@ shopt -s extglob
 IGNORE_WARN=""
 PKGBUILDUP_LOG="${appname}_result.log"
 
-# File integrity checks to use. Valid: md5, sha1, sha256, sha384, sha512
+# File integrity check to use. Valid: md5, sha1, sha256, sha384, sha512
 INTEGRITY_CHECK="md5"
 
 if [[ -z "${GET_PAGE_CMD}" ]]; then
