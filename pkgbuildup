@@ -69,10 +69,10 @@ first_log="t"
 log() {
 	local mesg=$1; shift
     if [ -n "${first_log}" ]; then
-	    printf "${mesg}\n" "$@" >${LOGFILE}
+	    printf "${mesg}\n" "$@" >${PKGBUILDUP_LOG}
         first_log=""
     else
-	    printf "${mesg}\n" "$@" >>${LOGFILE}
+	    printf "${mesg}\n" "$@" >>${PKGBUILDUP_LOG}
     fi
 }
 
@@ -502,7 +502,7 @@ shopt -s extglob
 
 # Default variables, can be overwrite
 IGNORE_WARN=""
-LOGFILE="${appname}_result.log"
+PKGBUILDUP_LOG="${appname}_result.log"
 
 # File integrity checks to use. Valid: md5, sha1, sha256, sha384, sha512
 INTEGRITY_CHECK="md5"
