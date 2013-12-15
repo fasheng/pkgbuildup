@@ -17,7 +17,8 @@
 
 # This script uses quite a few external programs during its execution. You
 # need to have at least the following installed to function:
-#   coreutils, curl, find (findutils), gawk, gettext, grep, sed
+#   coreutils, curl, find (findutils), gawk, gettext, grep, sed,
+#   pacman, burp
 
 ### Basic functions
 
@@ -297,7 +298,7 @@ get_latest_file_by_parsing_web_page() {
     abort_if_var_empty "${url}" "url"
     abort_if_var_empty "${filereg}" "filereg"
     msg2 "$(gettext "  url: %s")" "${url}"
-    msg2 "$(gettext "  file regexp: %s")" "${filereg}"
+    msg2 "$(gettext "  regexp: %s")" "${filereg}"
     
     # get web page content
     local get_page_cmd=$(printf "${GET_PAGE_CMD}" ${url})
@@ -400,6 +401,24 @@ generate_checksum() {
 	printf "%s" "${sum}"
 }
 
+run_makepkg() {
+    local pkgdir=$1
+    (cd "${pkgdir}"; rm -rf src pkg; makepkg -f) || return 1
+}
+
+upload_package() {
+    local pkgdir=$1
+    
+    # generate a new package source
+    (cd "${pkgdir}"; makepkg -fS) || return 1;
+    
+    local pkgsrc="$(ls --format=single-column --sort=time "${pkgdir}"/*.src.tar.gz | head -1)"
+    local upcmd="$(printf ${UPLOAD_CMD} ${pkgsrc})"
+    msg2 "$(gettext "Uploading package source to AUR: %s")" ${pkgsrc}
+    # TODO
+    # eval "${upcmd}" || return 1
+}
+
 ### Helper functions for target package, could use directly
 
 # Update PKGBUILD which package file living in other linux
@@ -426,13 +445,16 @@ generate_checksum() {
 #   - $2, package version regexp, used by "grep -o -P" in the first
 #     package file name
 #   - $3 [optional], if value is "true", will run makepkg after
-#     updating, default is "true"
+#     updating, default value is "true"
+#   - $4 [optional], if value is "true", will upload package to AUR
+#     after upldating, default value is "true"
 do_update_pkgbuild_for_source_site() {
     msg "$(gettext "Updating package which living in source site...")"
     local tplfile=$1
     local pkgverreg=$2
     local varvalues=""          # values for template variable
     local makepkg="${3:-true}"
+    local upload="${4:-true}"
     
     abort_if_var_empty "${FILE_INFO[0]}" "FILE_INFO"
     abort_if_var_empty "${tplfile}" "tplfile"
@@ -475,13 +497,15 @@ do_update_pkgbuild_for_source_site() {
     # generate new PKGBUILD
     generate_pkgbuild "${tplfile}" "${varvalues}"
     
-    # makepkg
+    # run makepkg
+    local pkgdir="$(dirname ${tplfile})"
     if [ "${makepkg}" = "true" ]; then
-        local pkgdir="$(dirname ${tplfile})"
-        (cd "${pkgdir}"; rm -rf src pkg; makepkg -f)
-        if (( $? )); then
-            return 1
-        fi
+        run_makepkg ${pkgdir} || return 1
+    fi
+
+    # upload package
+    if [ "${upload}" = "true" ]; then
+        upload_package ${pkgdir} || return 1
     fi
 }
 
@@ -506,6 +530,9 @@ shopt -s extglob
 # Default variables, can be overwrite
 IGNORE_WARN=""
 PKGBUILDUP_LOG="${appname}_result.log"
+
+# Command to upload package to AUR
+UPLOAD_CMD="burp -v %s"
 
 # File integrity check to use. Valid: md5, sha1, sha256, sha384, sha512
 INTEGRITY_CHECK="md5"
