@@ -1,0 +1,153 @@
+#+TITLE: PKGBUILDUP
+#+LANGUAGE: en
+#+OPTIONS: ^:{}
+
+*** NAME 
+    pkgbuildup - a helper tool for AUR package maintainer to automatic update PKGBUILD files
+    
+*** SYNOPSIS
+    pkgbuildup [ *-p* _<file>_ ] [ *-l* _<file>_ ] [ *-h* ] [ *-v* ]
+
+*** OPTIONS
+    - -p _<file>_                   :: Use an alternate update script (instead of 'PKGBUILDUP')
+    - -l, --listvar _<file>_        :: List variables in a template file
+    - -h, --help                    :: Prints help message
+    - -v, --version                 :: Prints version information
+
+*** INSTALL
+    Run command _make install_ or install through AUR which package
+    name is _pkgbuildup-git_.
+    
+*** DESCRIPTION
+    _pkgbuildup_ use two types of files named _PKGBUILD.tpl_ and
+    _PKGBUILDUP_ to help _AUR_ package maintainer to automatic update
+    _PKGBUILD_ files.
+
+    _PKGBUILD.tpl_ is a template file used to generate new
+    _PKGBUILD_, it support simple template variable syntax which
+    format looks like _{% var %}_, the variable name is composed by
+    english letters( _a-z_, _A-Z_ ), underline( ___ ) and numbers( _0-9_
+    ). 
+
+    _PKGBUILDUP_ for _pkgbuildup_ is corresponding to _PKGBUILD_ for
+    _makepkg_, its a shell script file, too. User could write code to
+    getting the latest package information and store them to a
+    _key-value_ table, the key name is the variable name in
+    _PKGBUILD.tpl_, and _pkgbuildup_ will use it to generate a
+    new _PKGBUILD_ file.
+    
+    And _pkgbuildup_ also provides few functions and variables to make
+    it easier to write a _PKGBUILDUP_ script, for example, if porting
+    a debian package to archlinux, you may want to use
+    _update_pkgbuild_for_source_site()_, more information please see
+    the documentation, TODO
+    
+*** EXAMPLE
+    Here is an example to porting _hello_ package in debian to
+    archlinux.
+
+    Firstly, we get the package web page:
+    http://ftp.debian.org/debian/pool/main/h/hello
+    
+    And the content of _PKGBUILD.tpl_ will be:
+    #+BEGIN_SRC sh
+    # There are six template variables: pkgver, pkgrel, filename_x86,
+    # filename_x64, md5_x86, and md5_x64. In this example we will see that
+    # pkgbuildup could dispatch multiple source files easily.
+    pkgname=hello
+    pkgver={% pkgver %}
+    pkgrel={% pkgrel %}
+    pkgdesc='Hello package from Debian'
+    arch=('i686' 'x86_64')
+    depends=()
+    license=('GPL3')
+    provides=("${pkgname}")
+    url="http://www.debian.com/"
+    _parent_url="http://ftp.debian.org/debian/pool/main/h/hello"
+    _filename_x86="{% filename_x86 %}"
+    _filename_x64="{% filename_x64 %}"
+    _md5_x86="{% md5_x86 %}"
+    _md5_x64="{% md5_x64 %}"
+    if test "$CARCH" == i686; then
+        _filename=${_filename_x86}
+        _md5=${_md5_x86}
+    else    
+        _filename=${_filename_x64}
+        _md5=${_md5_x64}
+    fi
+    source=("${_parent_url}/${_filename}")
+    md5sums=("${_md5}")
+    
+    package() {
+        tar xvf ${srcdir}/data.tar.xz -C ${pkgdir}/
+    }
+    #+END_SRC
+    
+    If run command _pkgbuild -l PKGBUILD.tpl_, it will output:
+    #+BEGIN_EXAMPLE
+    pkgver
+    pkgrel
+    filename_x86
+    filename_x64
+    md5_x86
+    md5_x64    
+    #+END_EXAMPLE
+    
+    Then is the _PKGBUILDUP_ file:
+    #+BEGIN_SRC sh
+    update_hello() {
+        local url="http://ftp.debian.org/debian/pool/main/h/hello"
+        local filereg_x86="hello_.*?_i386.deb"
+        local filereg_x64="hello_.*?_amd64.deb"
+        
+        # Meaningful variables for update_pkgbuild_for_source_site()
+        # $FILE_INFO, a array with useful information to get the latest
+        #   package file name, echo element own four fields which were
+        #   separate by "::".
+        #   The element format looks like as:
+        #     "filename_var::checksum_var::url::filename_regexp"
+        #   filename_var and checksum_var are the template variable's name.
+        local FILE_INFO=("filename_x86::md5_x86::${url}::${filereg_x86}"
+                         "filename_x64::md5_x64::${url}::${filereg_x64}")
+        
+        # $PKGREL_CMD, the command to get package release version, if
+        # exist "%s", it will be replaced by $pkgrelreg. This command will
+        # be used on first package file name in $FILE_INFO.
+        local PKGREL_CMD="grep -oP '\-\d+_' | tr -d '\-_'"
+        
+        # Arguments for update_pkgbuild_for_source_site()
+        local tplfile="hello/PKGBUILD.tpl"
+        local pkgverreg='[0-9]\\.[0-9]' # regexp to get package version
+        local pkgrelreg=""              # regexp to get package release
+                                        # version, we custom $PKGREL_CMD
+                                        # directly, so here is just empty
+        local makepkg="true"            # run makepkg after updating
+        local upload="false"            # upload package to aur after updating
+    
+        # update_pkgbuild_for_source_site() is a helper function in
+        # pkgbuildup, it will update PKGBUILD which package file living in
+        # other linux distribution's source site, and get the latest
+        # package file name by parsing the web page
+        update_pkgbuild_for_source_site "${tplfile}" "${pkgverreg}" "${pkgrelreg}" "${makepkg}" "${upload}"
+    }
+    
+    # Do update
+    update_hello
+    #+END_SRC
+    
+    Now we just run command _pkgbuildup_ under the directory of
+    _PKGBUILD_, it will get the latest package name automatically and
+    update the _PKGBUILD_ file, run _makepkg_, and upload the newer
+    _PKGBUILD_ file to _AUR_ if you wish. _pkgbuildup_ also provide a
+    simple log file named _pkgbuildup_result.log_, in this example,
+    its content will be:
+    #+BEGIN_EXAMPLE
+    [SUCCESS]  hello/PKGBUILD.tpl
+    #+END_EXAMPLE
+    
+    So, you can see, _pkgbuildup_ is easy to use, and not much code
+    needed, if used in conjunction with other tools like _cron_, it
+    maybe be more powerful.
+    
+*** LICENSE
+    GNU General Public License, Version 3.0
