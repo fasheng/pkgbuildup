@@ -66,12 +66,12 @@ warn_if_var_empty() {
     fi
 }
 
-first_log="t"
+first_log="true"
 log() {
 	local mesg=$1; shift
-    if [ -n "${first_log}" ]; then
+    if [ "${first_log}" = "true" ]; then
 	    printf "${mesg}\n" "$@" >${PKGBUILDUP_LOG}
-        first_log=""
+        first_log="false"
     else
 	    printf "${mesg}\n" "$@" >>${PKGBUILDUP_LOG}
     fi
@@ -117,26 +117,8 @@ source_safe() {
 	shopt -s extglob
 }
 
-# TODO
-# # Get file parent directory path
-# # For example: "/usr/bin/bash" -> "/usr/bin"
-# get_filepath() {
-# 	local path=$1
-#     filepath=${path%/*}
-# 	printf "%s\n" "${filepath}"
-# }
-
-# # Get file name from path
-# # For example: "/usr/bin/bash" -> "bash"
-# get_filename() {
-# 	local path=$1
-#     filename=${path##*/}
-# 	printf "%s\n" "${filename}"
-# }
-
-
 # Extract the protocol from a source entry - return "local" for local sources
-# [copy from makepkg]
+# copy from makepkg
 get_protocol() {
 	if [[ $1 = *://* ]]; then
 		# strip leading filename
@@ -150,7 +132,7 @@ get_protocol() {
 	fi
 }
 
-# [copy from makepkg]
+# copy from makepkg
 get_downloadclient() {
 	local proto=$1
 
@@ -186,7 +168,7 @@ get_downloadclient() {
 #   - $1, file url
 #   - $2 [optional], file to save as, default value is the base name
 #     of file url
-# [copy from makepkg with some changes]
+# copy from makepkg with some changes
 download_file() {
 	local url=$1
     local filename=$2
@@ -202,9 +184,6 @@ download_file() {
 	local dlcmd
 	dlcmd=$(get_downloadclient "$proto") || exit $?
 
-	# local filename=$(get_filename "$url")
-	# local url=$(get_url "$url")
-
 	if [[ $proto = "scp" ]]; then
 		# scp downloads should not pass the protocol in the url
 		url="${url##*://}"
@@ -212,6 +191,13 @@ download_file() {
 
 	msg2 "$(gettext "Downloading %s...")" "$filename"
 
+    if [ "${DOWNLOAD_OVERWRITE}" != "true" ]; then
+        if [ -e "${filename}" ]; then
+	        msg2 "$(gettext "File existed, skip downloading")"
+            return 
+        fi
+    fi
+    
 	# temporary download file, default to last component of the URL
 	local dlfile="${url##*/}"
 
@@ -291,7 +277,7 @@ urldecode() {
 #   - $2, regexp of the file name, used by command "grep -o -P" and
 #     sort to get the last file
 get_latest_file_by_parsing_web_page() {
-    msg2 "$(gettext "Parsing web page to get latest package file name:")"
+    msg2 "$(gettext "Parsing web page to get latest package file name...")"
     local url=$1
     local filereg=$2
     
@@ -414,9 +400,8 @@ upload_package() {
     
     local pkgsrc="$(ls --format=single-column --sort=time "${pkgdir}"/*.src.tar.gz | head -1)"
     local upcmd="$(printf ${UPLOAD_CMD} ${pkgsrc})"
-    msg2 "$(gettext "Uploading package source to AUR: %s")" ${pkgsrc}
-    # TODO
-    # eval "${upcmd}" || return 1
+    msg2 "$(gettext "Uploading package source to AUR: %s...")" ${pkgsrc}
+    eval "${upcmd}" || return 1
 }
 
 ### Helper functions for target package, could use directly
@@ -449,12 +434,12 @@ upload_package() {
 #   - $4 [optional], if value is "true", will upload package to AUR
 #     after upldating, default value is "true"
 do_update_pkgbuild_for_source_site() {
-    msg "$(gettext "Updating package which living in source site...")"
+    msg "$(gettext "Update PKGBUILD which package file living in other linux distribution's source site...;")"
     local tplfile=$1
     local pkgverreg=$2
-    local varvalues=""          # values for template variable
     local makepkg="${3:-true}"
     local upload="${4:-true}"
+    local varvalues=""          # values for template variable
     
     abort_if_var_empty "${FILE_INFO[0]}" "FILE_INFO"
     abort_if_var_empty "${tplfile}" "tplfile"
@@ -491,8 +476,9 @@ do_update_pkgbuild_for_source_site() {
     done
     
     # get package version
-    local pkgver=$(echo "${mainfn}" | grep -o -P ${pkgverreg} | tail -1)
-    varvalues=$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")
+    msg2 "$(gettext "Getting package version, regexp: %s")" "${pkgverreg}"
+    local pkgver="$(echo "${mainfn}" | grep -o -P ${pkgverreg} | tail -1)"
+    varvalues="$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")"
     
     # generate new PKGBUILD
     generate_pkgbuild "${tplfile}" "${varvalues}"
@@ -551,6 +537,9 @@ if [[ -z "${DLAGENTS}" ]]; then
               'scp::/usr/bin/scp -C %u %o')
 fi
 
+# Overwrite existed file when downloading. Valid: true or false
+DOWNLOAD_OVERWRITE="false"
+
 if [[ -z "${UPDATE_SCRIPT}" ]]; then
     UPDATE_SCRIPT='PKGBUILDUP'
 fi
@@ -594,4 +583,5 @@ if [ "${arg_listvar}" ]; then
 fi
 
 # Load update script
-source_safe ${arg_update_script}
+source_safe "${arg_update_script}"
+
