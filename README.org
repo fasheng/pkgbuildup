@@ -6,11 +6,11 @@
     pkgbuildup - a helper tool for AUR package maintainer to automatic update PKGBUILD files
     
 *** SYNOPSIS
-    pkgbuildup [ *-p* _<file>_ ] [ *-l* _<file>_ ] [ *-h* ] [ *-v* ]
+    pkgbuildup [ *-p <file>* ] [ *-l <file>* ] [ *-h* ] [ *-v* ]
 
 *** OPTIONS
-    - -p _<file>_                   :: Use an alternate update script (instead of 'PKGBUILDUP')
-    - -l, --listvar _<file>_        :: List variables in a template file
+    - -p <file>                     :: Use an alternate update script (instead of 'PKGBUILDUP')
+    - -l, --listvar <file>          :: List variables in a template file
     - -h, --help                    :: Prints help message
     - -v, --version                 :: Prints version information
 
@@ -26,8 +26,7 @@
     _PKGBUILD.tpl_ is a template file used to generate new
     _PKGBUILD_, it support simple template variable syntax which
     format looks like _{% var %}_, the variable name is composed by
-    english letters( _a-z_, _A-Z_ ), underline( ___ ) and numbers( _0-9_
-    ). 
+    english letters(a-z, A-Z), underline(_) and numbers(0-9). 
 
     _PKGBUILDUP_ for _pkgbuildup_ is corresponding to _PKGBUILD_ for
     _makepkg_, its a shell script file, too. User could write code to
@@ -40,7 +39,7 @@
     it easier to write a _PKGBUILDUP_ script, for example, if porting
     a debian package to archlinux, you may want to use
     _update_pkgbuild_for_source_site()_, more information please see
-    the documentation, TODO
+    the documentation(http://fasheng.github.io/pkgbuildup).
     
 *** EXAMPLE
     Here is an example to porting _hello_ package in debian to
