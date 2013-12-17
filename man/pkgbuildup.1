@@ -1,0 +1,179 @@
+.TH "PKGBUILDUP" "1" 
+
+.SH "NAME"
+.PP
+pkgbuildup - a helper tool for AUR package maintainer to automatic update PKGBUILD files
+.SH "SYNOPSIS"
+.PP
+pkgbuildup [ \fB-p <file>\fP ] [ \fB-l <file>\fP ] [ \fB-h\fP ] [ \fB-v\fP ]
+.SH "OPTIONS"
+.TP
+\fB-p <file>                    \fP
+Use an alternate update script (instead of 'PKGBUILDUP')
+.TP
+\fB-l, --listvar <file>         \fP
+List variables in a template file
+.TP
+\fB-h, --help                   \fP
+Prints help message
+.TP
+\fB-v, --version                \fP
+Prints version information
+.SH "INSTALL"
+.PP
+Run command \fBmake install\fP or install through AUR which package
+name is \fIpkgbuildup-git\fP.
+.SH "DESCRIPTION"
+.PP
+\fIpkgbuildup\fP use two types of files named \fBPKGBUILD.tpl\fP and
+\fBPKGBUILDUP\fP to help \fIAUR\fP package maintainer to automatic update
+\fIPKGBUILD\fP files.
+
+.PP
+\fIPKGBUILD.tpl\fP is a template file used to generate new
+\fIPKGBUILD\fP, it support simple template variable syntax which
+format looks like \fB{% var %}\fP, the variable name is composed by
+english letters(\fBa-z\fP, \fBA-Z\fP), underline(\fB_\fP) and numbers(\fB0-9\fP).
+
+.PP
+\fIPKGBUILDUP\fP for \fIpkgbuildup\fP is corresponding to \fIPKGBUILD\fP for
+\fImakepkg\fP, its a shell script file, too. User could write code to
+getting the latest package information and store them to a
+\fIkey-value\fP table, the key name is the variable name in
+\fIPKGBUILD.tpl\fP, and \fIpkgbuildup\fP will use it to generate a
+new \fIPKGBUILD\fP file.
+
+.PP
+And \fIpkgbuildup\fP also provides few functions and variables to make
+it easier to write a \fIPKGBUILDUP\fP script, for example, if porting
+a debian package to archlinux, you may want to use
+\fIupdate_pkgbuild_for_source_site()\fP, more information please see
+the documentation(\fIhttp://fasheng.github.io/pkgbuildup\fP).
+.SH "EXAMPLE"
+.PP
+Here is an example to porting \fIhello\fP package in debian to
+archlinux.
+
+.PP
+Firstly, we get the package web page:
+\fIhttp://ftp.debian.org/debian/pool/main/h/hello\fP
+
+.PP
+And the content of \fIPKGBUILD.tpl\fP will be:
+.RS
+.nf
+\fC# There are six template variables: pkgver, pkgrel, filename_x86,
+# filename_x64, md5_x86, and md5_x64. In this example we will see that
+# pkgbuildup could dispatch multiple source files easily.
+pkgname=hello
+pkgver={% pkgver %}
+pkgrel={% pkgrel %}
+pkgdesc='Hello package from Debian'
+arch=('i686' 'x86_64')
+depends=()
+license=('GPL3')
+provides=("${pkgname}")
+url="http://www.debian.com/"
+_parent_url="http://ftp.debian.org/debian/pool/main/h/hello"
+_filename_x86="{% filename_x86 %}"
+_filename_x64="{% filename_x64 %}"
+_md5_x86="{% md5_x86 %}"
+_md5_x64="{% md5_x64 %}"
+if test "$CARCH" == i686; then
+    _filename=${_filename_x86}
+    _md5=${_md5_x86}
+else
+    _filename=${_filename_x64}
+    _md5=${_md5_x64}
+fi
+source=("${_parent_url}/${_filename}")
+md5sums=("${_md5}")
+
+package() {
+    tar xvf ${srcdir}/data.tar.xz -C ${pkgdir}/
+}
+\fP
+.fi
+.RE
+
+.PP
+If run command \fBpkgbuild -l PKGBUILD.tpl\fP, it will output:
+.RS
+.nf
+pkgver
+pkgrel
+filename_x86
+filename_x64
+md5_x86
+md5_x64
+
+.fi
+.RE
+
+.PP
+Then is the \fIPKGBUILDUP\fP file:
+.RS
+.nf
+\fCupdate_hello() {
+    local url="http://ftp.debian.org/debian/pool/main/h/hello"
+    local filereg_x86="hello_.*?_i386.deb"
+    local filereg_x64="hello_.*?_amd64.deb"
+
+    # Meaningful variables for update_pkgbuild_for_source_site()
+    # $FILE_INFO, a array with useful information to get the latest
+    #   package file name, echo element own four fields which were
+    #   separate by "::".
+    #   The element format looks like as:
+    #     "filename_var::checksum_var::url::filename_regexp"
+    #   filename_var and checksum_var are the template variable's name.
+    local FILE_INFO=("filename_x86::md5_x86::${url}::${filereg_x86}"
+                     "filename_x64::md5_x64::${url}::${filereg_x64}")
+
+    # $PKGREL_CMD, the command to get package release version, if
+    # exist "%s", it will be replaced by $pkgrelreg. This command will
+    # be used on first package file name in $FILE_INFO.
+    local PKGREL_CMD="grep -oP '\-\d+_' | tr -d '\-_'"
+
+    # Arguments for update_pkgbuild_for_source_site()
+    local tplfile="hello/PKGBUILD.tpl"
+    local pkgverreg='[0-9]\.[0-9]'  # regexp to get package version
+    local pkgrelreg=""              # regexp to get package release
+                                    # version, we custom $PKGREL_CMD
+                                    # directly, so here is just empty
+    local makepkg="true"            # run makepkg after updating
+    local upload="false"            # upload package to aur after updating
+
+    # update_pkgbuild_for_source_site() is a helper function in
+    # pkgbuildup, it will update PKGBUILD which package file living in
+    # other linux distribution's source site, and get the latest
+    # package file name by parsing the web page
+    update_pkgbuild_for_source_site "${tplfile}" "${pkgverreg}" "${pkgrelreg}" "${makepkg}" "${upload}"
+}
+
+# Do update
+update_hello
+\fP
+.fi
+.RE
+
+.PP
+Now we just run command \fBpkgbuildup\fP under the directory of
+\fIPKGBUILD\fP, it will get the latest package name automatically and
+update the \fIPKGBUILD\fP file, run \fImakepkg\fP, and upload the newer
+\fIPKGBUILD\fP file to \fIAUR\fP if you wish. \fIpkgbuildup\fP also provide a
+simple log file named \fIpkgbuildup_result.log\fP, in this example,
+its content will be:
+.RS
+.nf
+[SUCCESS]  hello/PKGBUILD.tpl
+
+.fi
+.RE
+
+.PP
+So, you can see, \fIpkgbuildup\fP is easy to use, and not much code
+needed, if used in conjunction with other tools like \fIcron\fP, it
+maybe be more powerful.
+.SH "LICENSE"
+.PP
+GNU General Public License, Version 3.0
