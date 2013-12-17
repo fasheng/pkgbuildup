@@ -1,5 +1,8 @@
+# There are six template variables: pkgver, pkgrel, filename_x86,
+# filename_x64, md5_x86, and md5_x64. In this example we will see that
+# pkgbuildup could dispatch multiple source files easily.
 pkgname=hello
-pkgver=2.8
+pkgver=2.8             
 pkgrel=4
 pkgdesc='Hello package from Debian'
 arch=('i686' 'x86_64')

@@ -431,10 +431,10 @@ upload_package() {
     # "%s", will be replaced by $pkgrelreg, default value is "grep -o -P %s | tail -1"
 # Arguments:
 #   - $1, template file
-#   - $2 [optional], package version regexp, used by $PKGVER_CMD, in
+#   - $2 [optional], package version regexp, used by $PKGVER_CMD in
 #     the first package file name, and set the value to template
 #     variable "pkgver"
-#   - $3 [optional], package release regexp, used by $PKGREL_CMD, in
+#   - $3 [optional], package release regexp, used by $PKGREL_CMD in
 #     the first package file name, and set the value to template
 #     variable "pkgrel"
 #   - $4 [optional], if value is "true", will run makepkg after

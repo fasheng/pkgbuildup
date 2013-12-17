@@ -1,3 +1,6 @@
+# There are six template variables: pkgver, pkgrel, filename_x86,
+# filename_x64, md5_x86, and md5_x64. In this example we will see that
+# pkgbuildup could dispatch multiple source files easily.
 pkgname=hello
 pkgver={% pkgver %}
 pkgrel={% pkgrel %}
