@@ -1,0 +1,6 @@
+example/**/src
+example/**/pkg
+example/**/*.tar.xz
+example/**/*.deb
+example/**/*.tar.gz
+
