@@ -33,7 +33,7 @@ msg2() {
 }
 
 warning() {
-    if [ -z "${IGNORE_WARN}" ]; then
+    if [ "${IGNORE_WARN}" = "true" ]; then
 	    local mesg=$1; shift
 	    printf "==> $(gettext "WARNING:") ${mesg}\n" "$@" >&2
     fi
@@ -90,7 +90,7 @@ show_help() {
     printf "    ${appname} is a helper tool for AUR package maintainer to automatic update PKGBUILD files\n"
     printf "\n"
     printf "Usage:\n"
-    printf "    ${appname} [-p] [-l listvar] [-h help] [-v version]\n"
+    printf "    ${appname} [-p <file>] [-l <file>] [-h] [-v]\n"
     printf "\n"
     printf "Options:\n"
     printf "    -p <file>\n"
@@ -425,20 +425,29 @@ upload_package() {
 #     Here is an example:
 #       FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
 #                  "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
+#  - $PKGVER_CMD [optional], the command to get package version, if exist
+    # "%s", will be replaced by $pkgverreg, default value is "grep -o -P %s | tail -1"
+#  - $PKGREL_CMD [optional], the command to get package release version, , if exist
+    # "%s", will be replaced by $pkgrelreg, default value is "grep -o -P %s | tail -1"
 # Arguments:
 #   - $1, template file
-#   - $2, package version regexp, used by "grep -o -P" in the first
-#     package file name
-#   - $3 [optional], if value is "true", will run makepkg after
+#   - $2 [optional], package version regexp, used by $PKGVER_CMD, in
+#     the first package file name, and set the value to template
+#     variable "pkgver"
+#   - $3 [optional], package release regexp, used by $PKGREL_CMD, in
+#     the first package file name, and set the value to template
+#     variable "pkgrel"
+#   - $4 [optional], if value is "true", will run makepkg after
 #     updating, default value is "true"
-#   - $4 [optional], if value is "true", will upload package to AUR
+#   - $5 [optional], if value is "true", will upload package to AUR
 #     after upldating, default value is "true"
 do_update_pkgbuild_for_source_site() {
     msg "$(gettext "Update PKGBUILD which package file living in other linux distribution's source site...;")"
     local tplfile=$1
     local pkgverreg=$2
-    local makepkg="${3:-true}"
-    local upload="${4:-true}"
+    local pkgrelreg=$3
+    local makepkg="${4:-true}"
+    local upload="${5:-true}"
     local varvalues=""          # values for template variable
     
     abort_if_var_empty "${FILE_INFO[0]}" "FILE_INFO"
@@ -476,9 +485,18 @@ do_update_pkgbuild_for_source_site() {
     done
     
     # get package version
+    PKGVER_CMD=${PKGVER_CMD:-"grep -o -P %s | tail -1"}
+    pkgver_cmd="echo ${mainfn} | ""$(printf ${PKGVER_CMD} ${pkgverreg})"
     msg2 "$(gettext "Getting package version, regexp: %s")" "${pkgverreg}"
-    local pkgver="$(echo "${mainfn}" | grep -o -P ${pkgverreg} | tail -1)"
+    local pkgver="$(eval ${pkgver_cmd})"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")"
+    
+    # get package release
+    PKGREL_CMD=${PKGREL_CMD:-"grep -o -P %s | tail -1"}
+    pkgrel_cmd="echo ${mainfn} | ""$(printf ${PKGREL_CMD} ${pkgrelreg})"
+    msg2 "$(gettext "Getting package release, regexp: %s")" "${pkgrelreg}"
+    local pkgrel="$(eval ${pkgrel_cmd})"
+    varvalues="$(printf "%s\n%s" "${varvalues}" "pkgrel=${pkgrel}")"
     
     # generate new PKGBUILD
     generate_pkgbuild "${tplfile}" "${varvalues}"
@@ -514,7 +532,7 @@ version="0.1"
 shopt -s extglob
 
 # Default variables, can be overwrite
-IGNORE_WARN=""
+IGNORE_WARN="false"
 PKGBUILDUP_LOG="${appname}_result.log"
 
 # Command to upload package to AUR
