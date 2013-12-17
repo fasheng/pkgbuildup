@@ -9,49 +9,49 @@
     pkgbuildup [ *-p <file>* ] [ *-l <file>* ] [ *-h* ] [ *-v* ]
 
 *** OPTIONS
-    - -p <file>                     :: Use an alternate update script (instead of 'PKGBUILDUP')
-    - -l, --listvar <file>          :: List variables in a template file
-    - -h, --help                    :: Prints help message
-    - -v, --version                 :: Prints version information
+    - *-p <file>*                   :: Use an alternate update script (instead of 'PKGBUILDUP')
+    - *-l, --listvar <file>*        :: List variables in a template file
+    - *-h, --help*                  :: Prints help message
+    - *-v, --version*               :: Prints version information
 
 *** INSTALL
-    Run command _make install_ or install through AUR which package
-    name is _pkgbuildup-git_.
+    Run command *make install* or install through AUR which package
+    name is *pkgbuildup-git*.
     
 *** DESCRIPTION
-    _pkgbuildup_ use two types of files named _PKGBUILD.tpl_ and
-    _PKGBUILDUP_ to help _AUR_ package maintainer to automatic update
-    _PKGBUILD_ files.
+    *pkgbuildup* use two types of files named *PKGBUILD.tpl* and
+    *PKGBUILDUP* to help *AUR* package maintainer to automatic update
+    *PKGBUILD* files.
 
-    _PKGBUILD.tpl_ is a template file used to generate new
-    _PKGBUILD_, it support simple template variable syntax which
-    format looks like _{% var %}_, the variable name is composed by
-    english letters(a-z, A-Z), underline(_) and numbers(0-9). 
+    *PKGBUILD.tpl* is a template file used to generate new
+    *PKGBUILD*, it support simple template variable syntax which
+    format looks like *{% var %}*, the variable name is composed by
+    english letters(*a-z*, *A-Z*), underline(*_*) and numbers(*0-9*). 
 
-    _PKGBUILDUP_ for _pkgbuildup_ is corresponding to _PKGBUILD_ for
-    _makepkg_, its a shell script file, too. User could write code to
+    *PKGBUILDUP* for *pkgbuildup* is corresponding to *PKGBUILD* for
+    *makepkg*, its a shell script file, too. User could write code to
     getting the latest package information and store them to a
-    _key-value_ table, the key name is the variable name in
-    _PKGBUILD.tpl_, and _pkgbuildup_ will use it to generate a
-    new _PKGBUILD_ file.
+    *key-value* table, the key name is the variable name in
+    *PKGBUILD.tpl*, and *pkgbuildup* will use it to generate a
+    new *PKGBUILD* file.
     
-    And _pkgbuildup_ also provides few functions and variables to make
-    it easier to write a _PKGBUILDUP_ script, for example, if porting
+    And *pkgbuildup* also provides few functions and variables to make
+    it easier to write a *PKGBUILDUP* script, for example, if porting
     a debian package to archlinux, you may want to use
-    _update_pkgbuild_for_source_site()_, more information please see
+    *update_pkgbuild_for_source_site()*, more information please see
     the documentation(http://fasheng.github.io/pkgbuildup).
     
 *** EXAMPLE
-    Here is an example to porting _hello_ package in debian to
+    Here is an example to porting *hello* package in debian to
     archlinux.
 
     Firstly, we get the package web page:
     http://ftp.debian.org/debian/pool/main/h/hello
     
-    And the content of _PKGBUILD.tpl_ will be:
+    And the content of *PKGBUILD.tpl* will be:
     #+BEGIN_SRC sh
     # There are six template variables: pkgver, pkgrel, filename_x86,
-    # filename_x64, md5_x86, and md5_x64. In this example we will see that
+    # filename*x64, md5_x86, and md5*x64. In this example we will see that
     # pkgbuildup could dispatch multiple source files easily.
     pkgname=hello
     pkgver={% pkgver %}
@@ -82,7 +82,7 @@
     }
     #+END_SRC
     
-    If run command _pkgbuild -l PKGBUILD.tpl_, it will output:
+    If run command *pkgbuild -l PKGBUILD.tpl*, it will output:
     #+BEGIN_EXAMPLE
     pkgver
     pkgrel
@@ -92,7 +92,7 @@
     md5_x64    
     #+END_EXAMPLE
     
-    Then is the _PKGBUILDUP_ file:
+    Then is the *PKGBUILDUP* file:
     #+BEGIN_SRC sh
     update_hello() {
         local url="http://ftp.debian.org/debian/pool/main/h/hello"
@@ -134,18 +134,18 @@
     update_hello
     #+END_SRC
     
-    Now we just run command _pkgbuildup_ under the directory of
-    _PKGBUILD_, it will get the latest package name automatically and
-    update the _PKGBUILD_ file, run _makepkg_, and upload the newer
-    _PKGBUILD_ file to _AUR_ if you wish. _pkgbuildup_ also provide a
-    simple log file named _pkgbuildup_result.log_, in this example,
+    Now we just run command *pkgbuildup* under the directory of
+    *PKGBUILD*, it will get the latest package name automatically and
+    update the *PKGBUILD* file, run *makepkg*, and upload the newer
+    *PKGBUILD* file to *AUR* if you wish. *pkgbuildup* also provide a
+    simple log file named *pkgbuildup_result.log*, in this example,
     its content will be:
     #+BEGIN_EXAMPLE
     [SUCCESS]  hello/PKGBUILD.tpl
     #+END_EXAMPLE
     
-    So, you can see, _pkgbuildup_ is easy to use, and not much code
-    needed, if used in conjunction with other tools like _cron_, it
+    So, you can see, *pkgbuildup* is easy to use, and not much code
+    needed, if used in conjunction with other tools like *cron*, it
     maybe be more powerful.
     
 *** LICENSE
