@@ -442,7 +442,7 @@ upload_package() {
 #   - $5 [optional], if value is "true", will upload package to AUR
 #     after upldating, default value is "true"
 do_update_pkgbuild_for_source_site() {
-    msg "$(gettext "Update PKGBUILD which package file living in other linux distribution's source site...;")"
+    msg "$(gettext "Update PKGBUILD which package file living in other linux distribution's source site...")"
     local tplfile=$1
     local pkgverreg=$2
     local pkgrelreg=$3
@@ -485,17 +485,19 @@ do_update_pkgbuild_for_source_site() {
     done
     
     # get package version
-    PKGVER_CMD=${PKGVER_CMD:-"grep -o -P %s | tail -1"}
-    pkgver_cmd="echo ${mainfn} | ""$(printf ${PKGVER_CMD} ${pkgverreg})"
+    PKGVER_CMD=${PKGVER_CMD:-"grep -o -P \"%s\" | tail -1"}
+    pkgver_cmd="echo ${mainfn} | ""$(printf "${PKGVER_CMD}" "${pkgverreg}")"
     msg2 "$(gettext "Getting package version, regexp: %s")" "${pkgverreg}"
-    local pkgver="$(eval ${pkgver_cmd})"
+    msg2 "$(gettext "Command: %s")" "${pkgver_cmd}"
+    local pkgver="$(eval "${pkgver_cmd}")"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")"
     
     # get package release
-    PKGREL_CMD=${PKGREL_CMD:-"grep -o -P %s | tail -1"}
-    pkgrel_cmd="echo ${mainfn} | ""$(printf ${PKGREL_CMD} ${pkgrelreg})"
+    PKGREL_CMD=${PKGREL_CMD:-"grep -o -P \"%s\" | tail -1"}
+    pkgrel_cmd="echo ${mainfn} | ""$(printf "${PKGREL_CMD}" "${pkgrelreg}")"
     msg2 "$(gettext "Getting package release, regexp: %s")" "${pkgrelreg}"
-    local pkgrel="$(eval ${pkgrel_cmd})"
+    msg2 "$(gettext "Command: %s")" "${pkgrel_cmd}"
+    local pkgrel="$(eval "${pkgrel_cmd}")"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgrel=${pkgrel}")"
     
     # generate new PKGBUILD
