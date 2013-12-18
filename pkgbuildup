@@ -1,16 +1,31 @@
 #!/usr/bin/bash
-# **pkgbuildup** is a helper tool.
+# **pkgbuildup** a helper tool for `AUR` package maintainer to
+# automatic update `PKGBUILD` files, it use two types of files named
+# `PKGBUILD.tpl` and `PKGBUILDUP`.
+#
+# `PKGBUILD.tpl` is a template file used to generate new `PKGBUILD`,
+# it support simple template variable syntax which format looks like
+# `{% var %}`, the variable name is composed by english letters(`a-z`,
+# `A-Z`), underline(`_`) and numbers(`0-9`).
+#
+# `PKGBUILDUP` for `pkgbuildup` is corresponding to `PKGBUILD` for
+# `makepkg`, its a shell script file, too. User could write code to
+# getting the latest package information and store them to a
+# `key-value` table, the key name is the template variable name in
+# `PKGBUILD.tpl`, and `pkgbuildup` will use it to generate a new
+# `PKGBUILD` file.
+#
 # This script uses quite a few external programs during its execution. You
 # need to have at least the following installed to function:
 #   `coreutils`, `curl`, `find` (`findutils`), `gawk`, `gettext`, `grep`, `sed`.
 
-# ### Variables and functions for application
+# # Variables and functions for application
 
-# Application name and version.
+# Application name and version
 appname="pkgbuildup"
 version="0.1"
 
-# #### Show help message
+# Show help message
 show_help() {
     printf "Description:\n"
     printf "    ${appname} is a helper tool for AUR package maintainer to automatic update PKGBUILD files\n"
@@ -30,63 +45,63 @@ show_help() {
     exit 1
 }
 
-# #### Show version
+# Show version
 show_version() {
     printf "${appname} ${version}\n"
     exit 1
 }
 
-# ### Global variables, could be overwrite in PKGBUILDUP
+# # Global variables, could be overwrite in PKGBUILDUP
 
-# Ignore warning message. Valid: `true` or `false`.
+# Ignore warning message. Valid: `true` or `false`
 IGNORE_WARN="false"
 
-# Log file name.
+# Log file name
 PKGBUILDUP_LOG="${appname}_result.log"
 
 # Command to upload package to AUR. `%s` will be replaced by the
-# source package file.
+# source package file
 UPLOAD_CMD="burp -v %s"
 
-# File integrity check to use. Valid: `md5`, `sha1`, `sha256`, `sha384`, `sha512`.
+# File integrity check to use. Valid: `md5`, `sha1`, `sha256`, `sha384`, `sha512`
 INTEGRITY_CHECK="md5"
 
 # Command to get web page content. `%s` will be replaced by the page
-# url.
+# url
 GET_PAGE_CMD='/usr/bin/curl -sfL --retry 3 --retry-delay 3 %s'
 
-# The download utilities that should use to acquire sources.
-# Format: `protocol::agent`.
+# The download utilities that should use to acquire sources
+# Format: `protocol::agent`
 DLAGENTS=('ftp::/usr/bin/curl -fC - --ftp-pasv --retry 3 --retry-delay 3 -o %o %u'
     'http::/usr/bin/curl -fLC - --retry 3 --retry-delay 3 -o %o %u'
     'https::/usr/bin/curl -fLC - --retry 3 --retry-delay 3 -o %o %u'
     'rsync::/usr/bin/rsync --no-motd -z %u %o'
     'scp::/usr/bin/scp -C %u %o')
 
-# Overwrite existed file when downloading. Valid: `true` or `false`.
+# Overwrite existed file when downloading. Valid: `true` or `false`
 DOWNLOAD_OVERWRITE="false"
 
-# Update script name for `pkgbuildup`, default is `PKGUILDUP`.
+# Update script name for `pkgbuildup`, default is `PKGUILDUP`
 UPDATE_SCRIPT='PKGBUILDUP'
 
-# Update script name for `makepkg`, default is `PKGUILD`.
+# Update script name for `makepkg`, default is `PKGUILD`
 PKGBUILD_SCRIPT='PKGBUILD'
 
-# ###  Basic functions
+# #  Basic functions
 
-# #### Show message
+# Show message
 msg() {
     local mesg=$1; shift
     printf "==> ${mesg}\n" "$@" >&2
 }
 
-# #### Show message in level two
+# Show message in level two
 msg2() {
     local mesg=$1; shift
     printf "  -> ${mesg}\n" "$@" >&2
 }
 
-# #### Show warning message
+# Show warning message
 warning() {
     if [ "${IGNORE_WARN}" = "true" ]; then
         local mesg=$1; shift
@@ -94,20 +109,20 @@ warning() {
     fi
 }
 
-# #### Show error message
+# Show error message
 error() {
     local mesg=$1; shift
     printf "==> $(gettext "ERROR:") ${mesg}\n" "$@" >&2
 }
 
-# #### Show error message then exit
+# Show error message then exit
 abort() {
     error "$@"
     error "$(gettext "Aborting...")"
     exit 1
 }
 
-# #### Abort if a variable is empty
+# Abort if a variable is empty
 abort_if_var_empty() {
     local arg=$1
     local argname=$2
@@ -116,7 +131,7 @@ abort_if_var_empty() {
     fi
 }
 
-# #### Warning if a variable is empty
+# Warning if a variable is empty
 warn_if_var_empty() {
     local arg=$1
     local argname=$2
@@ -125,7 +140,7 @@ warn_if_var_empty() {
     fi
 }
 
-# #### Write message to log file
+# Write message to log file
 first_log="true"
 log() {
     local mesg=$1; shift
@@ -137,17 +152,17 @@ log() {
     fi
 }
 
-# #### Write success message to log file
+# Write success message to log file
 log_success() {
     log "$(gettext "[SUCCESS]  ")$@"
 }
 
-# #### Write failed message to log file
+# Write failed message to log file
 log_failed() {
     log "$(gettext "[FAILED]   ")$@"
 }
 
-# #### Source other script file safely
+# Source other script file safely
 source_safe() {
     shopt -u extglob
     if ! source "$@"; then
@@ -156,7 +171,7 @@ source_safe() {
     shopt -s extglob
 }
 
-# #### Extract the protocol from a source entry
+# Extract the protocol from a source entry
 # Return `local` for local sources.
 get_protocol() {
     if [[ $1 = *://* ]]; then
@@ -170,11 +185,11 @@ get_protocol() {
     fi
 }
 
-# #### Get download client
+# Get download client
 get_downloadclient() {
     local proto=$1
 
-    # loop through `DOWNLOAD_AGENTS` variable looking for protocol
+    #- loop through `DOWNLOAD_AGENTS` variable looking for protocol
     local i
     for i in "${DLAGENTS[@]}"; do
         local handler="${i%%::*}"
@@ -184,13 +199,13 @@ get_downloadclient() {
         fi
     done
 
-    # if we didn't find an agent, return an error
+    #- if we didn't find an agent, return an error
     if [[ -z $agent ]]; then
         error "$(gettext "Unknown download protocol: %s")" "$proto"
         return 1
     fi
 
-    # ensure specified program is installed
+    #- ensure specified program is installed
     local program="${agent%% *}"
     if [[ ! -x $program ]]; then
         local baseprog="${program##*/}"
@@ -201,29 +216,29 @@ get_downloadclient() {
     printf "%s\n" "$agent"
 }
 
-# #### Download file
+# Download file
 # Arguments:
-# 
+#
 #   - $1, the file url to download
 #   - $2 *optional*, file to save as, default value is the base name
 #     of the file url
 download_file() {
     local url=$1
     local filename=$2
-    
-    # check arguments
+
+    #- check arguments
     if [ -z "${filename}" ]; then
         filename="$(basename ${url})"
     fi
 
     local proto=$(get_protocol "$url")
 
-    # find the client we should use for this URL
+    #- find the client we should use for this URL
     local dlcmd
     dlcmd=$(get_downloadclient "$proto") || exit $?
 
     if [[ $proto = "scp" ]]; then
-        # scp downloads should not pass the protocol in the url
+        #- scp downloads should not pass the protocol in the url
         url="${url##*://}"
     fi
 
@@ -232,19 +247,19 @@ download_file() {
     if [ "${DOWNLOAD_OVERWRITE}" != "true" ]; then
         if [ -e "${filename}" ]; then
             msg2 "$(gettext "File existed, skip downloading")"
-            return 
+            return
         fi
     fi
-    
-    # temporary download file, default to last component of the URL
+
+    #- temporary download file, default to last component of the URL
     local dlfile="${url##*/}"
 
-    # replace `%o` by the temporary dlfile if it exists
+    #- replace `%o` by the temporary dlfile if it exists
     if [[ $dlcmd = *%o* ]]; then
         dlcmd="${dlcmd//\%o/\"$filename.part\"}"
         dlfile="$filename.part"
     fi
-    # add the URL, either in place of `%u` or at the end
+    #- add the URL, either in place of `%u` or at the end
     if [[ $dlcmd = *%u* ]]; then
         dlcmd="${dlcmd//\%u/\"$url\"}"
     else
@@ -259,15 +274,16 @@ download_file() {
         return 1
     fi
 
-    # rename the temporary download file to the final destination
+    #- rename the temporary download file to the final destination
     if [[ $dlfile != "$filename" ]]; then
         mv -f "$dlfile" "$filename"
     fi
 }
 
-# #### List variables in template file
+# List variables in template file
+#
 # Arguments:
-# 
+#
 #   - $1, the template file
 listvar() {
     tplfile=$1
@@ -299,74 +315,77 @@ END {
 ' ${tplfile}
 }
 
-# #### Join multi-line strings to one line
+# Join multi-line strings to one line
 joinline() {
     echo $*
 }
 
-# #### Decode url string, such as convert `%2b` to `+`
+# Decode url string, such as convert `%2b` to `+`
 urldecode() {
     local tmpstr="$(cat - | sed -e 's/%/\\x/g')"
     printf "${tmpstr}\n"
 }
 
-# #### Get latest file by parsing web page
+# Get latest package file name by parsing web page
+#
 # Arguments:
-# 
+#
 #   - $1, url of the web page
-#   - $2, regexp of the file name, used by command "grep -o -P" and
-#     sort to get the last file
+#   - $2, regexp of the file name, used by command `grep -o -P` to get
+#     the last file name TODO
 get_latest_file_by_parsing_web_page() {
     msg2 "$(gettext "Parsing web page to get latest package file name...")"
     local url=$1
     local filereg=$2
-    
+
     abort_if_var_empty "${url}" "url"
     abort_if_var_empty "${filereg}" "filereg"
     msg2 "$(gettext "  url: %s")" "${url}"
     msg2 "$(gettext "  regexp: %s")" "${filereg}"
-    
-    # get web page content
+
+    #- get web page content
     local get_page_cmd=$(printf "${GET_PAGE_CMD}" ${url})
     local web_content=$(eval "${get_page_cmd}")
-    
-    # decode url and get latest file
+
+    #- decode url and get latest file
     local matched_files=$(echo "${web_content}" | urldecode | grep -o -P ${filereg})
     local latestfn=$(echo "${matched_files}" | sort -n | tail -1)
     if [[ -z "${latestfn}" ]]; then
         error "$(gettext "Get latest package file name failed")"
         return 1
     fi
-    
+
     printf "%s\n" "${latestfn}"
 }
 
-# #### Generate PKGBUILD from template file
+# Generate `PKGBUILD` from template file
+#
 # Arguments:
-# 
-#   - $1, the template file, such as "PKGBUILD.template"
+#
+#   - $1, the template file, such as `PKGBUILD.tpl`
 #   - $2 *optional*, the variable values for template file,
 #     and echo variable own one line, such as:
-#       "var1=value1
-#        var2=value2
-#        var3=value3"
-#   - $3 *optional*, the output PKGBUILD file, default is in the same
+#
+#         var1=value1
+#         var2=value2
+#         var3=value3
+#   - $3 *optional*, the output `PKGBUILD` file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
     msg2 "$(gettext "Generating PKGBUILD from template file...")"
     local tplfile=$1
     local varvalues=$2
     local pkgfile=$3
-    
-    # check arguments
+
+    #- check arguments
     abort_if_var_empty "${tplfile}" "tplfile"
     warn_if_var_empty "${varvalues}" "varvalues"
     if [[ -z "${pkgfile}" ]]; then
         pkgfile="$(dirname ${tplfile})/${PKGBUILD_SCRIPT}"
     fi
-    
-    # replace variables to values in template file to generate PKGBUILD
-    # file, if variable is undefined, just replace to empty
+
+    #- replace variables to values in template file to generate PKGBUILD
+    #- file, if variable is undefined, just replace to empty
     msg2 "$(gettext "Variable values: %s")" "$(joinline ${varvalues})"
     msg2 "$(gettext "Generate '%s' through template file '%s'")" "${pkgfile}" "${tplfile}"
     awk -v varvalues_str="${varvalues}" '
@@ -397,8 +416,8 @@ varreg {
     print
 }
 ' ${tplfile} > ${pkgfile}
-    
-    # Check if all the template variables were replaced
+
+    #- check if all the template variables were replaced
     local vars=$(listvar ${pkgfile})
     if [ -n "${vars}" ]; then
         warning "$(gettext "there are undefined variables in %s: %s")" \
@@ -406,84 +425,87 @@ varreg {
     fi
 }
 
-# #### Generate checksum for file
+# Generate checksum for file
+# TODO
 generate_checksum() {
     local file=$1
     local integ=${INTEGRITY_CHECK}
     msg2 "$(gettext "Generating checksum for file: %s")" ${file}
-    
+
     if ! type -p openssl >/dev/null; then
         error "$(gettext "Cannot find the command '%s'")" "openssl"
         return 1
     fi
-    
+
     case "$integ" in
         md5|sha1|sha256|sha384|sha512) : ;;
         *)
             error "$(gettext "Invalid integrity algorithm '%s' specified")" "$integ"
             return 1 ;;
     esac
-    
+
     local sum="$(openssl dgst -${integ} "${file}")"
     sum=${sum##* }
     printf "%s" "${sum}"
 }
 
-# #### Run `makepkg`
+# Run `makepkg`
 run_makepkg() {
     local pkgdir=$1
     (cd "${pkgdir}"; rm -rf src pkg; makepkg -f) || return 1
 }
 
-# #### Upload source package to AUR
+# Upload source package to AUR
 upload_package() {
     local pkgdir=$1
-    
-    # generate a new package source
+
+    #- generate a new package source
     (cd "${pkgdir}"; makepkg -fS) || return 1;
-    
+
     local pkgsrc="$(ls --format=single-column --sort=time "${pkgdir}"/*.src.tar.gz | head -1)"
     local upcmd="$(printf ${UPLOAD_CMD} ${pkgsrc})"
     msg2 "$(gettext "Uploading package source to AUR: %s...")" ${pkgsrc}
     eval "${upcmd}" || return 1
 }
 
-# ### Helper functions for target package, could use directly
+# # Helper functions, could use directly
 
-# #### Update PKGBUILD which package file living in other linux
+# Update `PKGBUILD` which package file living in other linux
 # distribution's source site, and get the latest package file name by
 # parsing the web page
-# 
-# Need variables:
-# 
+#
+# Used variables:
+#
 #   - $FILE_INFO, a array with useful information to get the latest
 #     package file name, echo element own four fields which were
-#     separate by `::`.
-#     
-#     The element format looks like as:
+#     separate by `::`
+#
+#     The element format will looks like as:
 #
 #         "filename_var::checksum_var::url::filename_regexp"
+#
 #     Descripion of the format:
-#     
-#       - filename_var, the variable name in template file corresponding to the
-#         package file name
-#       - checksum_var, the check-sum's variable name for the package file
+#
+#       - filename_var, the package file's template variable name
+#       - checksum_var, the check-sum's template variable name for the
+#         package file
 #       - url, the url of the web page which the package file place in
 #       - filename_regexp, the regexp to get the latest package file name, will
 #         be used by command `grep -o -P`
-#         
+#
 #     Here is an example:
 #
 #         FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
 #                    "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
+#
 #  - $PKGVER_CMD *optional*, the command to get package version, if exist
-#    `%s`, will be replaced by `$pkgverreg`, default value is `grep -o -P %s | tail -1`
+#    `%s`, will be replaced by `$pkgverreg`, default value is `grep -o -P \"%s\" | tail -1`
 #  - $PKGREL_CMD *optional*, the command to get package release version, , if exist
-#    `%s`, will be replaced by `$pkgrelreg`, default value is `grep -o -P %s | tail -1`
-# 
+#    `%s`, will be replaced by `$pkgrelreg`, default value is `grep -o -P \"%s\" | tail -1`
+#
 # Arguments:
-# 
-#   - $1, template file
+#
+#   - $1, the template file
 #   - $2 *optional*, package version regexp, used by `$PKGVER_CMD` in
 #     the first package file name, and set the value to template
 #     variable `pkgver`
@@ -502,12 +524,12 @@ do_update_pkgbuild_for_source_site() {
     local makepkg="${4:-true}"
     local upload="${5:-true}"
     local varvalues=""          # values for template variable
-    
+
     abort_if_var_empty "${FILE_INFO[0]}" "FILE_INFO"
     abort_if_var_empty "${tplfile}" "tplfile"
     abort_if_var_empty "${pkgverreg}" "pkgverreg"
     msg2 "$(gettext "Updating %s...")" "${tplfile}"
-    
+
     #- parse variable FILE_INFO to get each package file's latest name and check-sum
     local mainfn=""
     for info in "${FILE_INFO[@]}"; do
@@ -515,28 +537,28 @@ do_update_pkgbuild_for_source_site() {
         local checksum_var="$(echo $info | awk -F '::' '{print $2}')"
         local url="$(echo $info | awk -F '::' '{print $3}')"
         local filereg="$(echo $info | awk -F '::' '{print $4}')"
-        
+
         local latestfn
         latestfn=$(get_latest_file_by_parsing_web_page "${url}" "${filereg}") || return 1
         varvalues=$(printf "%s\n%s" "${varvalues}" "${filename_var}=${latestfn}")
-        
+
         #- download latest package file
         local fileurl="${url}/${latestfn}"
         local savefile="$(dirname ${tplfile})/${latestfn}"
         download_file ${fileurl} ${savefile} || return 1
-        
+
         #- generate integrity checks
         local checksum
         checksum=$(generate_checksum ${savefile}) || return 1
         varvalues=$(printf "%s\n%s" "${varvalues}" "${checksum_var}=${checksum}")
-        
+
         #- set first package as the main package, and mark its latest
         #- file name to get package version later
         if [ -z "${mainfn}" ]; then
             mainfn=${latestfn}
         fi
     done
-    
+
     #- get package version
     PKGVER_CMD=${PKGVER_CMD:-"grep -o -P \"%s\" | tail -1"}
     pkgver_cmd="echo ${mainfn} | ""$(printf "${PKGVER_CMD}" "${pkgverreg}")"
@@ -544,7 +566,7 @@ do_update_pkgbuild_for_source_site() {
     msg2 "$(gettext "Command: %s")" "${pkgver_cmd}"
     local pkgver="$(eval "${pkgver_cmd}")"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")"
-    
+
     #- get package release
     PKGREL_CMD=${PKGREL_CMD:-"grep -o -P \"%s\" | tail -1"}
     pkgrel_cmd="echo ${mainfn} | ""$(printf "${PKGREL_CMD}" "${pkgrelreg}")"
@@ -552,10 +574,10 @@ do_update_pkgbuild_for_source_site() {
     msg2 "$(gettext "Command: %s")" "${pkgrel_cmd}"
     local pkgrel="$(eval "${pkgrel_cmd}")"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgrel=${pkgrel}")"
-    
+
     #- generate new PKGBUILD
     generate_pkgbuild "${tplfile}" "${varvalues}"
-    
+
     #- run makepkg
     local pkgdir="$(dirname ${tplfile})"
     if [ "${makepkg}" = "true" ]; then
@@ -568,7 +590,7 @@ do_update_pkgbuild_for_source_site() {
     fi
 }
 
-# #### Wrapper for do_update_pkgbuild_for_source_site()
+# Wrapper for `do_update_pkgbuild_for_source_site()`
 update_pkgbuild_for_source_site() {
     local tplfile=$1
     do_update_pkgbuild_for_source_site "$@"
@@ -579,12 +601,12 @@ update_pkgbuild_for_source_site() {
     fi
 }
 
-# ### Main loop
+# # Main loop
 
-# Setup bash.
+# Setup bash
 shopt -s extglob
 
-# Dispatch arguments.
+# Dispatch arguments
 arg_update_script="${PWD}/${UPDATE_SCRIPT}"
 arg_listvar=""
 arg_help=""
@@ -598,25 +620,27 @@ while [ $# -gt 0 ]; do
         -v|--version)   arg_version=t; break ;;
         --)             shift; break ;;
         *)              abort "$(gettext "Unknown argument: %s")" "$@" ;;
-    esac        
+    esac
 done
 
-# Show help message.
+# Show help message
 if [ "${arg_help}" ]; then
     show_help
 fi
 
-# Show version.
+# Show version
 if [ "${arg_version}" ]; then
     show_version
 fi
 
-# List variables in template file.
+# List variables in template file
 if [ "${arg_listvar}" ]; then
     listvar ${arg_listvar}
     exit
 fi
 
-# Load update script, default name is "PKGBUILDUP".
+# Load update script, default name is `PKGBUILDUP`
 source_safe "${arg_update_script}"
 
+# # License
+# GNU General Public License, Version 3.0

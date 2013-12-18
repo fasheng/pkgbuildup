@@ -116,7 +116,7 @@
 
         # Arguments for update_pkgbuild_for_source_site()
         local tplfile="hello/PKGBUILD.tpl"
-        local pkgverreg='[0-9]\\.[0-9]' # regexp to get package version
+        local pkgverreg='[0-9]\.[0-9]'  # regexp to get package version
         local pkgrelreg=""              # regexp to get package release
                                         # version, we custom $PKGREL_CMD
                                         # directly, so here is just empty

@@ -25,18 +25,19 @@ help :
 	@echo "    make [doc|install|uninstall|help] [DESTDIR=\"$(DESTDIR)\"] [prefix=\"$(prefix)\"]"
 
 doc :
-	@echo "==> make document..."
-	@-mkdir doc
-	@echo "==> done."
+	@echo "==> Generating document..."
+	shocco pkgbuildup > doc/index.html
+	sed -i 's=http://jashkenas.github.com/docco/resources/docco.css=./docco.css=' doc/index.html
+	@echo "==> Done."
 
 install :
-	@echo "==> install..."
+	@echo "==> Installing..."
 	install -m755 pkgbuildup $(bindir)
 	install -m644 man/pkgbuildup.1 $(mandir)
-	@echo "==> done."
+	@echo "==> Done."
 
 uninstall :
-	@echo "==> uninstall..."
+	@echo "==> Uninstalling..."
 	rm -f $(bindir)/pkgbuildup
 	rm -f $(mandir)/pkgbuildup.1 
-	@echo "==> done."
+	@echo "==> Done."
