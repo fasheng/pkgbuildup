@@ -250,7 +250,7 @@ download_file() {
 
     if [ "${DOWNLOAD_OVERWRITE}" != "true" ]; then
         if [ -e "${filename}" ]; then
-            msg2 "$(gettext "File existed, skip downloading")"
+            msg2 "$(gettext "File existed, skip download")"
             return
         fi
     fi
@@ -332,11 +332,17 @@ urldecode() {
 
 # Get latest package file name by parsing web page
 #
+# Used variables:
+#
+#  - **$FILENAME_CMD** *optional*, the command to get latest package
+#    file name, if exist `%s`, will be replaced by `$filereg`, default
+#    value is `"grep -o -P \"%s\" | sort -n | tail -1"`
+#
 # Arguments:
 #
 #   - **$1**, url of the web page
-#   - **$2**, regexp of the file name, used by command `grep -o -P` to get
-#     the last file name TODO
+#   - **$2**, regexp of the file name, used by command `$FILENAME_CMD`
+#     to get the last file name
 get_latest_file_by_parsing_web_page() {
     msg2 "$(gettext "Parsing web page to get latest package file name...")"
     local url=$1
@@ -352,8 +358,10 @@ get_latest_file_by_parsing_web_page() {
     local web_content=$(eval "${get_page_cmd}")
 
     #- decode url and get latest file
-    local matched_files=$(echo "${web_content}" | urldecode | grep -o -P ${filereg})
-    local latestfn=$(echo "${matched_files}" | sort -n | tail -1)
+    : ${FILENAME_CMD:="grep -o -P \"%s\" | sort -n | tail -1"}
+    filename_cmd="echo '${web_content}' | urldecode | ""$(printf "${FILENAME_CMD}" "${filereg}")"
+    local latestfn="$(eval "${filename_cmd}")"
+
     if [[ -z "${latestfn}" ]]; then
         error "$(gettext "Get latest package file name failed")"
         return 1
@@ -564,7 +572,7 @@ do_update_pkgbuild_for_source_site() {
     done
 
     #- get package version
-    PKGVER_CMD=${PKGVER_CMD:-"grep -o -P \"%s\" | tail -1"}
+    : ${PKGVER_CMD:="grep -o -P \"%s\" | tail -1"}
     pkgver_cmd="echo ${mainfn} | ""$(printf "${PKGVER_CMD}" "${pkgverreg}")"
     msg2 "$(gettext "Getting package version, regexp: %s")" "${pkgverreg}"
     msg2 "$(gettext "Command: %s")" "${pkgver_cmd}"
@@ -572,7 +580,7 @@ do_update_pkgbuild_for_source_site() {
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")"
 
     #- get package release
-    PKGREL_CMD=${PKGREL_CMD:-"grep -o -P \"%s\" | tail -1"}
+    : ${PKGREL_CMD:="grep -o -P \"%s\" | tail -1"}
     pkgrel_cmd="echo ${mainfn} | ""$(printf "${PKGREL_CMD}" "${pkgrelreg}")"
     msg2 "$(gettext "Getting package release, regexp: %s")" "${pkgrelreg}"
     msg2 "$(gettext "Command: %s")" "${pkgrel_cmd}"
