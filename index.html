@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv='content-type' content='text/html;charset=utf-8'>
+    <title>pkgbuildup</title>
+    <link rel=stylesheet href="./docco.css">
+</head>
+<body>
+<div id=container>
+    <div id=background></div>
+    <table cellspacing=0 cellpadding=0>
+    <thead>
+      <tr>
+        <th class=docs><h1>pkgbuildup</h1></th>
+        <th class=code></th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr><td class='docs'><p><strong>pkgbuildup</strong> is a helper tool for <code>AUR</code> package maintainer to
+automatic update <code>PKGBUILD</code> files, it use two types of files named
+<code>PKGBUILD.tpl</code> and <code>PKGBUILDUP</code>.</p>
+<p><code>PKGBUILD.tpl</code> is a template file used to generate new <code>PKGBUILD</code>,
+it support simple template variable syntax which format looks like
+<code>{% var %}</code>, the variable name is composed by english letters(<code>a-z</code>,
+<code>A-Z</code>), underline(<code>_</code>) and numbers(<code>0-9</code>).</p>
+<p><code>PKGBUILDUP</code> for <code>pkgbuildup</code> is corresponding to <code>PKGBUILD</code> for
+<code>makepkg</code>, its a shell script file, too. User could write code to
+getting the latest package information and store them to a
+<code>key-value</code> table, the key name is the template variable name in
+<code>PKGBUILD.tpl</code>, and <code>pkgbuildup</code> will use it to generate a new
+<code>PKGBUILD</code> file.</p>
+<p>This script uses quite a few external programs during its execution. You
+need to have at least the following installed to function:
+  <code>coreutils</code>, <code>curl</code>, <code>find</code> (<code>findutils</code>), <code>gawk</code>, <code>gettext</code>, <code>grep</code>, <code>sed</code>.</p>
+</td><td class=code><div class=highlight><pre>
+<span class="c">#!/usr/bin/bash</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>Install</h1>
+<p>Run command <code>make install</code> or install through AUR which package
+name is <code>pkgbuildup-git</code>.</p>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>Variables and functions for application</h1>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Application name and version</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">appname</span><span class="o">=</span><span class="s2">&quot;pkgbuildup&quot;</span>
+<span class="nv">version</span><span class="o">=</span><span class="s2">&quot;0.1&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show help message</p>
+</td><td class=code><div class=highlight><pre>
+show_help<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">printf</span> <span class="s2">&quot;Description:\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;    ${appname} is a helper tool for AUR package maintainer to automatic update PKGBUILD files\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;Usage:\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;    ${appname} [-p &lt;file&gt;] [-l &lt;file&gt;] [-h] [-v]\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;Options:\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;    -p &lt;file&gt;\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;        Use an alternate update script (instead of &#39;${UPDATE_SCRIPT}&#39;)\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;    -l, --listvar &lt;file&gt;\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;        List variables in a template file\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;    -h, --help\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;        Prints help message\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;    -v, --version\n&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;        Prints version information\n&quot;</span>
+    <span class="nb">exit </span>1
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show version</p>
+</td><td class=code><div class=highlight><pre>
+show_version<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">printf</span> <span class="s2">&quot;${appname} ${version}\n&quot;</span>
+    <span class="nb">exit </span>1
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>Global variables, could be overwrite in PKGBUILDUP</h1>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Ignore warning message. Valid: <code>true</code> or <code>false</code></p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">IGNORE_WARN</span><span class="o">=</span><span class="s2">&quot;false&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Log file name</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">PKGBUILDUP_LOG</span><span class="o">=</span><span class="s2">&quot;${appname}_result.log&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Command to upload package to AUR. <code>%s</code> will be replaced by the
+source package file</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">UPLOAD_CMD</span><span class="o">=</span><span class="s2">&quot;burp -v %s&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>File integrity check to use. Valid: <code>md5</code>, <code>sha1</code>, <code>sha256</code>, <code>sha384</code>, <code>sha512</code></p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">INTEGRITY_CHECK</span><span class="o">=</span><span class="s2">&quot;md5&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Command to get web page content. <code>%s</code> will be replaced by the page
+url</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">GET_PAGE_CMD</span><span class="o">=</span><span class="s1">&#39;/usr/bin/curl -sfL --retry 3 --retry-delay 3 %s&#39;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>The download utilities that should use to acquire sources
+Format: <code>protocol::agent</code></p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">DLAGENTS</span><span class="o">=(</span><span class="s1">&#39;ftp::/usr/bin/curl -fC - --ftp-pasv --retry 3 --retry-delay 3 -o %o %u&#39;</span>
+    <span class="s1">&#39;http::/usr/bin/curl -fLC - --retry 3 --retry-delay 3 -o %o %u&#39;</span>
+    <span class="s1">&#39;https::/usr/bin/curl -fLC - --retry 3 --retry-delay 3 -o %o %u&#39;</span>
+    <span class="s1">&#39;rsync::/usr/bin/rsync --no-motd -z %u %o&#39;</span>
+    <span class="s1">&#39;scp::/usr/bin/scp -C %u %o&#39;</span><span class="o">)</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Overwrite existed file when downloading. Valid: <code>true</code> or <code>false</code></p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">DOWNLOAD_OVERWRITE</span><span class="o">=</span><span class="s2">&quot;false&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Update script name for <code>pkgbuildup</code>, default is <code>PKGUILDUP</code></p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">UPDATE_SCRIPT</span><span class="o">=</span><span class="s1">&#39;PKGBUILDUP&#39;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Update script name for <code>makepkg</code>, default is <code>PKGUILD</code></p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">PKGBUILD_SCRIPT</span><span class="o">=</span><span class="s1">&#39;PKGBUILD&#39;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>Basic functions</h1>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show message</p>
+</td><td class=code><div class=highlight><pre>
+msg<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">mesg</span><span class="o">=</span><span class="nv">$1</span>; <span class="nb">shift</span>
+<span class="nb">    printf</span> <span class="s2">&quot;==&gt; ${mesg}\n&quot;</span> <span class="s2">&quot;$@&quot;</span> &gt;&amp;2
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show message in level two</p>
+</td><td class=code><div class=highlight><pre>
+msg2<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">mesg</span><span class="o">=</span><span class="nv">$1</span>; <span class="nb">shift</span>
+<span class="nb">    printf</span> <span class="s2">&quot;  -&gt; ${mesg}\n&quot;</span> <span class="s2">&quot;$@&quot;</span> &gt;&amp;2
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show warning message</p>
+</td><td class=code><div class=highlight><pre>
+warning<span class="o">()</span> <span class="o">{</span>
+    <span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${IGNORE_WARN}&quot;</span> <span class="o">=</span> <span class="s2">&quot;true&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">mesg</span><span class="o">=</span><span class="nv">$1</span>; <span class="nb">shift</span>
+<span class="nb">        printf</span> <span class="s2">&quot;==&gt; $(gettext &quot;</span>WARNING:<span class="s2">&quot;) ${mesg}\n&quot;</span> <span class="s2">&quot;$@&quot;</span> &gt;&amp;2
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show error message</p>
+</td><td class=code><div class=highlight><pre>
+error<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">mesg</span><span class="o">=</span><span class="nv">$1</span>; <span class="nb">shift</span>
+<span class="nb">    printf</span> <span class="s2">&quot;==&gt; $(gettext &quot;</span>ERROR:<span class="s2">&quot;) ${mesg}\n&quot;</span> <span class="s2">&quot;$@&quot;</span> &gt;&amp;2
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show error message then exit</p>
+</td><td class=code><div class=highlight><pre>
+abort<span class="o">()</span> <span class="o">{</span>
+    error <span class="s2">&quot;$@&quot;</span>
+    error <span class="s2">&quot;$(gettext &quot;</span>Aborting...<span class="s2">&quot;)&quot;</span>
+    <span class="nb">exit </span>1
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Abort if a variable is empty</p>
+</td><td class=code><div class=highlight><pre>
+abort_if_var_empty<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">arg</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">argname</span><span class="o">=</span><span class="nv">$2</span>
+    <span class="k">if</span> <span class="o">[[</span> -z <span class="s2">&quot;${arg}&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span>abort <span class="s2">&quot;$(gettext &quot;</span>variable <span class="se">\$</span>%s is empty<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${argname}&quot;</span>
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Warning if a variable is empty</p>
+</td><td class=code><div class=highlight><pre>
+warn_if_var_empty<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">arg</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">argname</span><span class="o">=</span><span class="nv">$2</span>
+    <span class="k">if</span> <span class="o">[[</span> -z <span class="s2">&quot;${arg}&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span>warning <span class="s2">&quot;$(gettext &quot;</span>variable <span class="se">\$</span>%s is empty<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${argname}&quot;</span>
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Write message to log file</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">first_log</span><span class="o">=</span><span class="s2">&quot;true&quot;</span>
+log<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">mesg</span><span class="o">=</span><span class="nv">$1</span>; <span class="nb">shift</span>
+<span class="nb">    </span><span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${first_log}&quot;</span> <span class="o">=</span> <span class="s2">&quot;true&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nb">printf</span> <span class="s2">&quot;${mesg}\n&quot;</span> <span class="s2">&quot;$@&quot;</span> &gt;<span class="k">${</span><span class="nv">PKGBUILDUP_LOG</span><span class="k">}</span>
+        <span class="nv">first_log</span><span class="o">=</span><span class="s2">&quot;false&quot;</span>
+    <span class="k">else</span>
+<span class="k">        </span><span class="nb">printf</span> <span class="s2">&quot;${mesg}\n&quot;</span> <span class="s2">&quot;$@&quot;</span> &gt;&gt;<span class="k">${</span><span class="nv">PKGBUILDUP_LOG</span><span class="k">}</span>
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Write success message to log file</p>
+</td><td class=code><div class=highlight><pre>
+log_success<span class="o">()</span> <span class="o">{</span>
+    log <span class="s2">&quot;$(gettext &quot;</span><span class="o">[</span>SUCCESS<span class="o">]</span>  <span class="s2">&quot;)$@&quot;</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Write failed message to log file</p>
+</td><td class=code><div class=highlight><pre>
+log_failed<span class="o">()</span> <span class="o">{</span>
+    log <span class="s2">&quot;$(gettext &quot;</span><span class="o">[</span>FAILED<span class="o">]</span>   <span class="s2">&quot;)$@&quot;</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Source other script file safely</p>
+</td><td class=code><div class=highlight><pre>
+source_safe<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">shopt</span> -u extglob
+    <span class="k">if</span> ! <span class="nb">source</span> <span class="s2">&quot;$@&quot;</span>; <span class="k">then</span>
+<span class="k">        </span>abort <span class="s2">&quot;$(gettext &quot;</span>Failed to <span class="nb">source</span> %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$1&quot;</span>
+    <span class="k">fi</span>
+<span class="k">    </span><span class="nb">shopt</span> -s extglob
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Extract the protocol from a source entry
+Return <code>local</code> for local sources.</p>
+</td><td class=code><div class=highlight><pre>
+get_protocol<span class="o">()</span> <span class="o">{</span>
+    <span class="k">if</span> <span class="o">[[</span> <span class="nv">$1</span> <span class="o">=</span> *://* <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">proto</span><span class="o">=</span><span class="s2">&quot;${1##*::}&quot;</span> <span class="c"># strip leading filename</span>
+        <span class="nb">printf</span> <span class="s2">&quot;%s\n&quot;</span> <span class="s2">&quot;${proto%%://*}&quot;</span>
+    <span class="k">elif</span> <span class="o">[[</span> <span class="nv">$1</span> <span class="o">=</span> *lp:* <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">proto</span><span class="o">=</span><span class="s2">&quot;${1##*::}&quot;</span>
+        <span class="nb">printf</span> <span class="s2">&quot;%s\n&quot;</span> <span class="s2">&quot;${proto%%lp:*}&quot;</span>
+    <span class="k">else</span>
+<span class="k">        </span><span class="nb">printf</span> <span class="s2">&quot;%s\n&quot;</span> <span class="nb">local</span>
+<span class="nb">    </span><span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Get download client</p>
+</td><td class=code><div class=highlight><pre>
+get_downloadclient<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">proto</span><span class="o">=</span><span class="nv">$1</span>
+
+    <span class="c">#- loop through `DOWNLOAD_AGENTS` variable looking for protocol</span>
+    <span class="nb">local </span>i
+    <span class="k">for </span>i in <span class="s2">&quot;${DLAGENTS[@]}&quot;</span>; <span class="k">do</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">handler</span><span class="o">=</span><span class="s2">&quot;${i%%::*}&quot;</span>
+        <span class="k">if</span> <span class="o">[[</span> <span class="nv">$proto</span> <span class="o">=</span> <span class="s2">&quot;$handler&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">            </span><span class="nb">local </span><span class="nv">agent</span><span class="o">=</span><span class="s2">&quot;${i##*::}&quot;</span>
+            <span class="nb">break</span>
+<span class="nb">        </span><span class="k">fi</span>
+<span class="k">    done</span>
+
+    <span class="c">#- if we didn&#39;t find an agent, return an error</span>
+    <span class="k">if</span> <span class="o">[[</span> -z <span class="nv">$agent</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span>error <span class="s2">&quot;$(gettext &quot;</span>Unknown download protocol: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$proto&quot;</span>
+        <span class="k">return </span>1
+    <span class="k">fi</span>
+
+    <span class="c">#- ensure specified program is installed</span>
+    <span class="nb">local </span><span class="nv">program</span><span class="o">=</span><span class="s2">&quot;${agent%% *}&quot;</span>
+    <span class="k">if</span> <span class="o">[[</span> ! -x <span class="nv">$program</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">baseprog</span><span class="o">=</span><span class="s2">&quot;${program##*/}&quot;</span>
+        error <span class="s2">&quot;$(gettext &quot;</span>The download program %s is not installed.<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$baseprog&quot;</span>
+        <span class="k">return </span>1
+    <span class="k">fi</span>
+
+<span class="k">    </span><span class="nb">printf</span> <span class="s2">&quot;%s\n&quot;</span> <span class="s2">&quot;$agent&quot;</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Download file
+Arguments:</p>
+<ul>
+<li><strong>$1</strong>, the file url to download</li>
+<li><strong>$2</strong> <em>optional</em>, file to save as, default value is the base name
+    of the file url</li>
+</ul>
+</td><td class=code><div class=highlight><pre>
+download_file<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">url</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">filename</span><span class="o">=</span><span class="nv">$2</span>
+
+    <span class="c">#- check arguments</span>
+    <span class="k">if</span> <span class="o">[</span> -z <span class="s2">&quot;${filename}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nv">filename</span><span class="o">=</span><span class="s2">&quot;$(basename ${url})&quot;</span>
+    <span class="k">fi</span>
+
+<span class="k">    </span><span class="nb">local </span><span class="nv">proto</span><span class="o">=</span><span class="k">$(</span>get_protocol <span class="s2">&quot;$url&quot;</span><span class="k">)</span>
+
+    <span class="c">#- find the client we should use for this URL</span>
+    <span class="nb">local </span>dlcmd
+    <span class="nv">dlcmd</span><span class="o">=</span><span class="k">$(</span>get_downloadclient <span class="s2">&quot;$proto&quot;</span><span class="k">)</span> <span class="o">||</span> <span class="nb">exit</span> <span class="nv">$?</span>
+
+    <span class="k">if</span> <span class="o">[[</span> <span class="nv">$proto</span> <span class="o">=</span> <span class="s2">&quot;scp&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+        <span class="c">#- scp downloads should not pass the protocol in the url</span>
+        <span class="nv">url</span><span class="o">=</span><span class="s2">&quot;${url##*://}&quot;</span>
+    <span class="k">fi</span>
+
+<span class="k">    </span>msg2 <span class="s2">&quot;$(gettext &quot;</span>Downloading %s...<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$filename&quot;</span>
+
+    <span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${DOWNLOAD_OVERWRITE}&quot;</span> !<span class="o">=</span> <span class="s2">&quot;true&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        if</span> <span class="o">[</span> -e <span class="s2">&quot;${filename}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">            </span>msg2 <span class="s2">&quot;$(gettext &quot;</span>File existed, skip download<span class="s2">&quot;)&quot;</span>
+            <span class="k">return</span>
+<span class="k">        fi</span>
+<span class="k">    fi</span>
+
+    <span class="c">#- temporary download file, default to last component of the URL</span>
+    <span class="nb">local </span><span class="nv">dlfile</span><span class="o">=</span><span class="s2">&quot;${url##*/}&quot;</span>
+
+    <span class="c">#- replace `%o` by the temporary dlfile if it exists</span>
+    <span class="k">if</span> <span class="o">[[</span> <span class="nv">$dlcmd</span> <span class="o">=</span> *%o* <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nv">dlcmd</span><span class="o">=</span><span class="s2">&quot;${dlcmd//\%o/\&quot;$filename.part\&quot;}&quot;</span>
+        <span class="nv">dlfile</span><span class="o">=</span><span class="s2">&quot;$filename.part&quot;</span>
+    <span class="k">fi</span>
+    <span class="c">#- add the URL, either in place of `%u` or at the end</span>
+    <span class="k">if</span> <span class="o">[[</span> <span class="nv">$dlcmd</span> <span class="o">=</span> *%u* <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nv">dlcmd</span><span class="o">=</span><span class="s2">&quot;${dlcmd//\%u/\&quot;$url\&quot;}&quot;</span>
+    <span class="k">else</span>
+<span class="k">        </span><span class="nv">dlcmd</span><span class="o">=</span><span class="s2">&quot;$dlcmd \&quot;$url\&quot;&quot;</span>
+    <span class="k">fi</span>
+
+<span class="k">    </span><span class="nb">local </span><span class="nv">ret</span><span class="o">=</span>0
+    <span class="nb">eval</span> <span class="s2">&quot;$dlcmd || ret=\$?&quot;</span>
+    <span class="k">if</span> <span class="o">((</span> ret <span class="o">))</span>; <span class="k">then</span>
+        <span class="o">[[</span> ! -s <span class="nv">$dlfile</span> <span class="o">]]</span> <span class="o">&amp;&amp;</span> rm -f -- <span class="s2">&quot;$dlfile&quot;</span>
+        error <span class="s2">&quot;$(gettext &quot;</span>Failure <span class="k">while </span>downloading %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$filename&quot;</span>
+        <span class="k">return </span>1
+    <span class="k">fi</span>
+
+    <span class="c">#- rename the temporary download file to the final destination</span>
+    <span class="k">if</span> <span class="o">[[</span> <span class="nv">$dlfile</span> !<span class="o">=</span> <span class="s2">&quot;$filename&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span>mv -f <span class="s2">&quot;$dlfile&quot;</span> <span class="s2">&quot;$filename&quot;</span>
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>List variables in template file</p>
+<p>Arguments:</p>
+<ul>
+<li><strong>$1</strong>, the template file</li>
+</ul>
+</td><td class=code><div class=highlight><pre>
+listvar<span class="o">()</span> <span class="o">{</span>
+    <span class="nv">tplfile</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="k">if</span> <span class="o">[</span> ! -e <span class="s2">&quot;${tplfile}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span>abort <span class="s2">&quot;$(gettext &quot;</span>file does not exist, %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${tplfile}&quot;</span>
+    <span class="k">fi</span>
+
+<span class="k">    </span>awk <span class="s1">&#39;</span>
+<span class="s1">BEGIN {</span>
+<span class="s1">    varreg=&quot;(^.*){% *(\\w+) *%}(.*$)&quot;</span>
+<span class="s1">}</span>
+
+<span class="s1">varreg {</span>
+<span class="s1">    while ($0 ~ varreg) {</span>
+<span class="s1">        var=gensub(varreg, &quot;\\2&quot;, &quot;&quot;)</span>
+<span class="s1">        $0=gensub(varreg, &quot;\\1\\3&quot;, &quot;&quot;)</span>
+<span class="s1">        if (var in vars == 0) {</span>
+<span class="s1">            vars[var]=l++</span>
+<span class="s1">        }</span>
+<span class="s1">    }</span>
+<span class="s1">}</span>
+
+<span class="s1">END {</span>
+<span class="s1">    PROCINFO[&quot;sorted_in&quot;] = &quot;@val_num_asc&quot;</span>
+<span class="s1">    for (var in vars) {</span>
+<span class="s1">        print var</span>
+<span class="s1">    }</span>
+<span class="s1">}</span>
+<span class="s1">&#39;</span> <span class="k">${</span><span class="nv">tplfile</span><span class="k">}</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Join multi-line strings to one line</p>
+</td><td class=code><div class=highlight><pre>
+joinline<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">echo</span> <span class="nv">$*</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Decode url string, such as convert <code>%2b</code> to <code>+</code></p>
+</td><td class=code><div class=highlight><pre>
+urldecode<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">tmpstr</span><span class="o">=</span><span class="s2">&quot;$(cat - | sed -e &#39;s/%/\\x/g&#39;)&quot;</span>
+    <span class="nb">printf</span> <span class="s2">&quot;${tmpstr}\n&quot;</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Get latest package file name by parsing web page</p>
+<p>Used variables:</p>
+<ul>
+<li><strong>$FILENAME_CMD</strong> <em>optional</em>, the command to get latest package
+   file name, if exist <code>%s</code>, will be replaced by <code>$filereg</code>, default
+   value is <code>"grep -o -P \"%s\" | sort -n | tail -1"</code></li>
+</ul>
+<p>Arguments:</p>
+<ul>
+<li><strong>$1</strong>, url of the web page</li>
+<li><strong>$2</strong>, regexp of the file name, used by command <code>$FILENAME_CMD</code>
+    to get the last file name</li>
+</ul>
+</td><td class=code><div class=highlight><pre>
+get_latest_file_by_parsing_web_page<span class="o">()</span> <span class="o">{</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Parsing web page to get latest package file name...<span class="s2">&quot;)&quot;</span>
+    <span class="nb">local </span><span class="nv">url</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">filereg</span><span class="o">=</span><span class="nv">$2</span>
+
+    abort_if_var_empty <span class="s2">&quot;${url}&quot;</span> <span class="s2">&quot;url&quot;</span>
+    abort_if_var_empty <span class="s2">&quot;${filereg}&quot;</span> <span class="s2">&quot;filereg&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>  url: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${url}&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>  regexp: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${filereg}&quot;</span>
+
+    <span class="c">#- get web page content</span>
+    <span class="nb">local </span><span class="nv">get_page_cmd</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span> <span class="s2">&quot;${GET_PAGE_CMD}&quot;</span> <span class="k">${</span><span class="nv">url</span><span class="k">})</span>
+    <span class="nb">local </span><span class="nv">web_content</span><span class="o">=</span><span class="k">$(</span><span class="nb">eval</span> <span class="s2">&quot;${get_page_cmd}&quot;</span><span class="k">)</span>
+
+    <span class="c">#- decode url and get latest file</span>
+    : <span class="k">${</span><span class="nv">FILENAME_CMD</span><span class="p">:=</span><span class="s2">&quot;grep -o -P \&quot;%s\&quot; | sort -n | tail -1&quot;</span><span class="k">}</span>
+    <span class="nv">filename_cmd</span><span class="o">=</span><span class="s2">&quot;echo &#39;${web_content}&#39; | urldecode | &quot;&quot;$(printf &quot;</span><span class="k">${</span><span class="nv">FILENAME_CMD</span><span class="k">}</span><span class="s2">&quot; &quot;</span><span class="k">${</span><span class="nv">filereg</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    <span class="nb">local </span><span class="nv">latestfn</span><span class="o">=</span><span class="s2">&quot;$(eval &quot;</span><span class="k">${</span><span class="nv">filename_cmd</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+
+    <span class="k">if</span> <span class="o">[[</span> -z <span class="s2">&quot;${latestfn}&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span>error <span class="s2">&quot;$(gettext &quot;</span>Get latest package file name failed<span class="s2">&quot;)&quot;</span>
+        <span class="k">return </span>1
+    <span class="k">fi</span>
+
+<span class="k">    </span><span class="nb">printf</span> <span class="s2">&quot;%s\n&quot;</span> <span class="s2">&quot;${latestfn}&quot;</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Generate <code>PKGBUILD</code> from template file</p>
+<p>Arguments:</p>
+<ul>
+<li><strong>$1</strong>, the template <code>file</code>, such as <code>PKGBUILD.tpl</code></li>
+<li>
+<p><strong>$2</strong> <em>optional</em>, the variable values for template file,
+    and echo variable own one line, such as:</p>
+<pre><code>var1=value1
+var2=value2
+var3=value3
+</code></pre>
+</li>
+<li>
+<p><strong>$3</strong> <em>optional</em>, the output <code>PKGBUILD</code> file, default is in the same
+    directory with template file</p>
+</li>
+</ul>
+</td><td class=code><div class=highlight><pre>
+generate_pkgbuild<span class="o">()</span> <span class="o">{</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Generating PKGBUILD from template file...<span class="s2">&quot;)&quot;</span>
+    <span class="nb">local </span><span class="nv">tplfile</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">varvalues</span><span class="o">=</span><span class="nv">$2</span>
+    <span class="nb">local </span><span class="nv">pkgfile</span><span class="o">=</span><span class="nv">$3</span>
+
+    <span class="c">#- check arguments</span>
+    abort_if_var_empty <span class="s2">&quot;${tplfile}&quot;</span> <span class="s2">&quot;tplfile&quot;</span>
+    warn_if_var_empty <span class="s2">&quot;${varvalues}&quot;</span> <span class="s2">&quot;varvalues&quot;</span>
+    <span class="k">if</span> <span class="o">[[</span> -z <span class="s2">&quot;${pkgfile}&quot;</span> <span class="o">]]</span>; <span class="k">then</span>
+<span class="k">        </span><span class="nv">pkgfile</span><span class="o">=</span><span class="s2">&quot;$(dirname ${tplfile})/${PKGBUILD_SCRIPT}&quot;</span>
+    <span class="k">fi</span>
+
+    <span class="c">#- replace variables to values in template file to generate PKGBUILD</span>
+    <span class="c">#- file, if variable is undefined, just replace to empty</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Variable values: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$(joinline ${varvalues})&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Generate <span class="s1">&#39;%s&#39;</span> through template file <span class="s1">&#39;%s&#39;</span><span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${pkgfile}&quot;</span> <span class="s2">&quot;${tplfile}&quot;</span>
+    awk -v <span class="nv">varvalues_str</span><span class="o">=</span><span class="s2">&quot;${varvalues}&quot;</span> <span class="s1">&#39;</span>
+<span class="s1">BEGIN {</span>
+<span class="s1">    varreg=&quot;(^.*){% *(\\w+) *%}(.*$)&quot;</span>
+
+<span class="s1">    #- build varvalues array</span>
+<span class="s1">    split(varvalues_str, lines, &quot;\n&quot;)</span>
+<span class="s1">    for (i in lines) {</span>
+<span class="s1">        split(lines[i], arr, &quot;=&quot;)</span>
+<span class="s1">        varvalues[arr[1]]=arr[2]</span>
+<span class="s1">    }</span>
+<span class="s1">}</span>
+
+<span class="s1">varreg {</span>
+<span class="s1">    tmpstr=$0</span>
+<span class="s1">    while (tmpstr ~ varreg) {</span>
+<span class="s1">        var=gensub(varreg, &quot;\\2&quot;, &quot;&quot;, tmpstr)</span>
+<span class="s1">        if (var in varvalues) {</span>
+<span class="s1">            value=varvalues[var]</span>
+<span class="s1">            $0=gensub(&quot;{% *&quot;var&quot; *%}&quot;, value, &quot;g&quot;)</span>
+<span class="s1">        }</span>
+
+<span class="s1">        #- no matter there are undefined variables, just</span>
+<span class="s1">        #- remove it in tmpstr to avoid infinity loop</span>
+<span class="s1">        tmpstr=gensub(varreg, &quot;\\1\\3&quot;, &quot;g&quot;, tmpstr)</span>
+<span class="s1">    }</span>
+<span class="s1">    print</span>
+<span class="s1">}</span>
+<span class="s1">&#39;</span> <span class="k">${</span><span class="nv">tplfile</span><span class="k">}</span> &gt; <span class="k">${</span><span class="nv">pkgfile</span><span class="k">}</span>
+
+    <span class="c">#- check if all the template variables were replaced</span>
+    <span class="nb">local </span><span class="nv">vars</span><span class="o">=</span><span class="k">$(</span>listvar <span class="k">${</span><span class="nv">pkgfile</span><span class="k">})</span>
+    <span class="k">if</span> <span class="o">[</span> -n <span class="s2">&quot;${vars}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span>warning <span class="s2">&quot;$(gettext &quot;</span>there are undefined variables in %s: %s<span class="s2">&quot;)&quot;</span> <span class="se">\</span>
+            <span class="s2">&quot;${pkgfile}&quot;</span> <span class="s2">&quot;$(joinline ${vars})&quot;</span>
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Generate checksum for file</p>
+</td><td class=code><div class=highlight><pre>
+generate_checksum<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">file</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">integ</span><span class="o">=</span><span class="k">${</span><span class="nv">INTEGRITY_CHECK</span><span class="k">}</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Generating checksum <span class="k">for </span>file: %s<span class="s2">&quot;)&quot;</span> <span class="k">${</span><span class="nv">file</span><span class="k">}</span>
+
+    <span class="k">if</span> ! <span class="nb">type</span> -p openssl &gt;/dev/null; <span class="k">then</span>
+<span class="k">        </span>error <span class="s2">&quot;$(gettext &quot;</span>Cannot find the <span class="nb">command</span> <span class="s1">&#39;%s&#39;</span><span class="s2">&quot;)&quot;</span> <span class="s2">&quot;openssl&quot;</span>
+        <span class="k">return </span>1
+    <span class="k">fi</span>
+
+<span class="k">    case</span> <span class="s2">&quot;$integ&quot;</span> in
+        md5|sha1|sha256|sha384|sha512<span class="o">)</span> : ;;
+        *<span class="o">)</span>
+            error <span class="s2">&quot;$(gettext &quot;</span>Invalid integrity algorithm <span class="s1">&#39;%s&#39;</span> specified<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$integ&quot;</span>
+            <span class="k">return </span>1 ;;
+    <span class="k">esac</span>
+
+<span class="k">    </span><span class="nb">local </span><span class="nv">sum</span><span class="o">=</span><span class="s2">&quot;$(openssl dgst -${integ} &quot;</span><span class="k">${</span><span class="nv">file</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    <span class="nv">sum</span><span class="o">=</span><span class="k">${</span><span class="nv">sum</span><span class="p">##* </span><span class="k">}</span>
+    <span class="nb">printf</span> <span class="s2">&quot;%s&quot;</span> <span class="s2">&quot;${sum}&quot;</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Run <code>makepkg</code></p>
+</td><td class=code><div class=highlight><pre>
+run_makepkg<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">pkgdir</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="o">(</span><span class="nb">cd</span> <span class="s2">&quot;${pkgdir}&quot;</span>; rm -rf src pkg; makepkg -f<span class="o">)</span> <span class="o">||</span> <span class="k">return </span>1
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Upload source package to AUR</p>
+</td><td class=code><div class=highlight><pre>
+upload_package<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">pkgdir</span><span class="o">=</span><span class="nv">$1</span>
+
+    <span class="c">#- generate a new package source</span>
+    <span class="o">(</span><span class="nb">cd</span> <span class="s2">&quot;${pkgdir}&quot;</span>; makepkg -fS<span class="o">)</span> <span class="o">||</span> <span class="k">return </span>1;
+
+    <span class="nb">local </span><span class="nv">pkgsrc</span><span class="o">=</span><span class="s2">&quot;$(ls --format=single-column --sort=time &quot;</span><span class="k">${</span><span class="nv">pkgdir</span><span class="k">}</span><span class="s2">&quot;/*.src.tar.gz | head -1)&quot;</span>
+    <span class="nb">local </span><span class="nv">upcmd</span><span class="o">=</span><span class="s2">&quot;$(printf ${UPLOAD_CMD} ${pkgsrc})&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Uploading package <span class="nb">source </span>to AUR: %s...<span class="s2">&quot;)&quot;</span> <span class="k">${</span><span class="nv">pkgsrc</span><span class="k">}</span>
+    <span class="nb">eval</span> <span class="s2">&quot;${upcmd}&quot;</span> <span class="o">||</span> <span class="k">return </span>1
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>Helper functions, could use directly</h1>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Update <code>PKGBUILD</code> which package file living in other linux
+distribution's source site, and get the latest package file name by
+parsing the web page</p>
+<p>Used variables:</p>
+<ul>
+<li>
+<p><strong>$FILE_INFO</strong>, a array with useful information to get the latest
+    package file name, echo element own four fields which were
+    separate by <code>::</code></p>
+<p>The element format will looks like as:</p>
+<pre><code>"filename_var::checksum_var::url::filename_regexp"
+</code></pre>
+<p>Descripion of the format:</p>
+<ul>
+<li><strong>filename_var</strong>, the package file's template variable name</li>
+<li><strong>checksum_var</strong>, the check-sum's template variable name for the
+    package file</li>
+<li><strong>url</strong>, the url of the web page which the package file place in</li>
+<li><strong>filename_regexp</strong>, the regexp to get the latest package file name, will
+    be used by command <code>grep -o -P</code></li>
+</ul>
+<p>Here is an example:</p>
+<pre><code>FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
+           "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
+</code></pre>
+</li>
+<li>
+<p><strong>$PKGVER_CMD</strong> <em>optional</em>, the command to get package version, if exist
+   <code>%s</code>, will be replaced by <code>$pkgverreg</code>, default value is <code>grep -o -P \"%s\" | tail -1</code></p>
+</li>
+<li><strong>$PKGREL_CMD</strong> <em>optional</em>, the command to get package release version, , if exist
+   <code>%s</code>, will be replaced by <code>$pkgrelreg</code>, default value is <code>grep -o -P \"%s\" | tail -1</code></li>
+</ul>
+<p>Arguments:</p>
+<ul>
+<li><strong>$1</strong>, the template file</li>
+<li><strong>$2</strong> <em>optional</em>, package version regexp, used by <code>$PKGVER_CMD</code> in
+    the first package file name, and set the value to template
+    variable <code>pkgver</code></li>
+<li><strong>$3</strong> <em>optional</em>, package release regexp, used by <code>$PKGREL_CMD</code> in
+    the first package file name, and set the value to template
+    variable <code>pkgrel</code></li>
+<li><strong>$4</strong> <em>optional</em>, if value is <code>true</code>, will run <code>makepkg</code> after
+    updating, default value is <code>true</code></li>
+<li><strong>$5</strong> <em>optional</em>, if value is <code>true</code>, will upload package to AUR
+    after upldating, default value is <code>true</code></li>
+</ul>
+</td><td class=code><div class=highlight><pre>
+do_update_pkgbuild_for_source_site<span class="o">()</span> <span class="o">{</span>
+    msg <span class="s2">&quot;$(gettext &quot;</span>Update PKGBUILD which package file living in other linux distribution <span class="nb">source </span>site...<span class="s2">&quot;)&quot;</span>
+    <span class="nb">local </span><span class="nv">tplfile</span><span class="o">=</span><span class="nv">$1</span>
+    <span class="nb">local </span><span class="nv">pkgverreg</span><span class="o">=</span><span class="nv">$2</span>
+    <span class="nb">local </span><span class="nv">pkgrelreg</span><span class="o">=</span><span class="nv">$3</span>
+    <span class="nb">local </span><span class="nv">makepkg</span><span class="o">=</span><span class="s2">&quot;${4:-true}&quot;</span>
+    <span class="nb">local </span><span class="nv">upload</span><span class="o">=</span><span class="s2">&quot;${5:-true}&quot;</span>
+    <span class="nb">local </span><span class="nv">varvalues</span><span class="o">=</span><span class="s2">&quot;&quot;</span>          <span class="c"># values for template variable</span>
+
+    abort_if_var_empty <span class="s2">&quot;${FILE_INFO[0]}&quot;</span> <span class="s2">&quot;FILE_INFO&quot;</span>
+    abort_if_var_empty <span class="s2">&quot;${tplfile}&quot;</span> <span class="s2">&quot;tplfile&quot;</span>
+    abort_if_var_empty <span class="s2">&quot;${pkgverreg}&quot;</span> <span class="s2">&quot;pkgverreg&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Updating %s...<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${tplfile}&quot;</span>
+
+    <span class="c">#- parse variable FILE_INFO to get each package file&#39;s latest name and check-sum</span>
+    <span class="nb">local </span><span class="nv">mainfn</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+    <span class="k">for </span>info in <span class="s2">&quot;${FILE_INFO[@]}&quot;</span>; <span class="k">do</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">filename_var</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $1}&#39;)&quot;</span>
+        <span class="nb">local </span><span class="nv">checksum_var</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $2}&#39;)&quot;</span>
+        <span class="nb">local </span><span class="nv">url</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $3}&#39;)&quot;</span>
+        <span class="nb">local </span><span class="nv">filereg</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $4}&#39;)&quot;</span>
+
+        <span class="nb">local </span>latestfn
+        <span class="nv">latestfn</span><span class="o">=</span><span class="k">$(</span>get_latest_file_by_parsing_web_page <span class="s2">&quot;${url}&quot;</span> <span class="s2">&quot;${filereg}&quot;</span><span class="k">)</span> <span class="o">||</span> <span class="k">return </span>1
+        <span class="nv">varvalues</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span> <span class="s2">&quot;%s\n%s&quot;</span> <span class="s2">&quot;${varvalues}&quot;</span> <span class="s2">&quot;${filename_var}=${latestfn}&quot;</span><span class="k">)</span>
+
+        <span class="c">#- download latest package file</span>
+        <span class="nb">local </span><span class="nv">fileurl</span><span class="o">=</span><span class="s2">&quot;${url}/${latestfn}&quot;</span>
+        <span class="nb">local </span><span class="nv">savefile</span><span class="o">=</span><span class="s2">&quot;$(dirname ${tplfile})/${latestfn}&quot;</span>
+        download_file <span class="k">${</span><span class="nv">fileurl</span><span class="k">}</span> <span class="k">${</span><span class="nv">savefile</span><span class="k">}</span> <span class="o">||</span> <span class="k">return </span>1
+
+        <span class="c">#- generate integrity checks</span>
+        <span class="nb">local </span>checksum
+        <span class="nv">checksum</span><span class="o">=</span><span class="k">$(</span>generate_checksum <span class="k">${</span><span class="nv">savefile</span><span class="k">})</span> <span class="o">||</span> <span class="k">return </span>1
+        <span class="nv">varvalues</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span> <span class="s2">&quot;%s\n%s&quot;</span> <span class="s2">&quot;${varvalues}&quot;</span> <span class="s2">&quot;${checksum_var}=${checksum}&quot;</span><span class="k">)</span>
+
+        <span class="c">#- set first package as the main package, and mark its latest</span>
+        <span class="c">#- file name to get package version later</span>
+        <span class="k">if</span> <span class="o">[</span> -z <span class="s2">&quot;${mainfn}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">            </span><span class="nv">mainfn</span><span class="o">=</span><span class="k">${</span><span class="nv">latestfn</span><span class="k">}</span>
+        <span class="k">fi</span>
+<span class="k">    done</span>
+
+    <span class="c">#- get package version</span>
+    : <span class="k">${</span><span class="nv">PKGVER_CMD</span><span class="p">:=</span><span class="s2">&quot;grep -o -P \&quot;%s\&quot; | tail -1&quot;</span><span class="k">}</span>
+    <span class="nv">pkgver_cmd</span><span class="o">=</span><span class="s2">&quot;echo ${mainfn} | &quot;&quot;$(printf &quot;</span><span class="k">${</span><span class="nv">PKGVER_CMD</span><span class="k">}</span><span class="s2">&quot; &quot;</span><span class="k">${</span><span class="nv">pkgverreg</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Getting package version, regexp: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${pkgverreg}&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Command: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${pkgver_cmd}&quot;</span>
+    <span class="nb">local </span><span class="nv">pkgver</span><span class="o">=</span><span class="s2">&quot;$(eval &quot;</span><span class="k">${</span><span class="nv">pkgver_cmd</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    <span class="nv">varvalues</span><span class="o">=</span><span class="s2">&quot;$(printf &quot;</span>%s<span class="se">\n</span>%s<span class="s2">&quot; &quot;</span><span class="k">${</span><span class="nv">varvalues</span><span class="k">}</span><span class="s2">&quot; &quot;</span><span class="nv">pkgver</span><span class="o">=</span><span class="k">${</span><span class="nv">pkgver</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+
+    <span class="c">#- get package release</span>
+    : <span class="k">${</span><span class="nv">PKGREL_CMD</span><span class="p">:=</span><span class="s2">&quot;grep -o -P \&quot;%s\&quot; | tail -1&quot;</span><span class="k">}</span>
+    <span class="nv">pkgrel_cmd</span><span class="o">=</span><span class="s2">&quot;echo ${mainfn} | &quot;&quot;$(printf &quot;</span><span class="k">${</span><span class="nv">PKGREL_CMD</span><span class="k">}</span><span class="s2">&quot; &quot;</span><span class="k">${</span><span class="nv">pkgrelreg</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Getting package release, regexp: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${pkgrelreg}&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Command: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${pkgrel_cmd}&quot;</span>
+    <span class="nb">local </span><span class="nv">pkgrel</span><span class="o">=</span><span class="s2">&quot;$(eval &quot;</span><span class="k">${</span><span class="nv">pkgrel_cmd</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    <span class="nv">varvalues</span><span class="o">=</span><span class="s2">&quot;$(printf &quot;</span>%s<span class="se">\n</span>%s<span class="s2">&quot; &quot;</span><span class="k">${</span><span class="nv">varvalues</span><span class="k">}</span><span class="s2">&quot; &quot;</span><span class="nv">pkgrel</span><span class="o">=</span><span class="k">${</span><span class="nv">pkgrel</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+
+    <span class="c">#- generate new PKGBUILD</span>
+    generate_pkgbuild <span class="s2">&quot;${tplfile}&quot;</span> <span class="s2">&quot;${varvalues}&quot;</span>
+
+    <span class="c">#- run makepkg</span>
+    <span class="nb">local </span><span class="nv">pkgdir</span><span class="o">=</span><span class="s2">&quot;$(dirname ${tplfile})&quot;</span>
+    <span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${makepkg}&quot;</span> <span class="o">=</span> <span class="s2">&quot;true&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span>run_makepkg <span class="k">${</span><span class="nv">pkgdir</span><span class="k">}</span> <span class="o">||</span> <span class="k">return </span>1
+    <span class="k">fi</span>
+
+    <span class="c">#- upload package</span>
+    <span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${upload}&quot;</span> <span class="o">=</span> <span class="s2">&quot;true&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">        </span>upload_package <span class="k">${</span><span class="nv">pkgdir</span><span class="k">}</span> <span class="o">||</span> <span class="k">return </span>1
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Wrapper for <code>do_update_pkgbuild_for_source_site()</code></p>
+</td><td class=code><div class=highlight><pre>
+update_pkgbuild_for_source_site<span class="o">()</span> <span class="o">{</span>
+    <span class="nb">local </span><span class="nv">tplfile</span><span class="o">=</span><span class="nv">$1</span>
+    do_update_pkgbuild_for_source_site <span class="s2">&quot;$@&quot;</span>
+    <span class="k">if</span> <span class="o">((</span> <span class="nv">$?</span> <span class="o">))</span>; <span class="k">then</span>
+<span class="k">        </span>log_failed <span class="s2">&quot;${tplfile}&quot;</span>
+    <span class="k">else</span>
+<span class="k">        </span>log_success <span class="s2">&quot;${tplfile}&quot;</span>
+    <span class="k">fi</span>
+<span class="o">}</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>Main loop</h1>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Setup bash</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nb">shopt</span> -s extglob
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Dispatch arguments</p>
+</td><td class=code><div class=highlight><pre>
+<span class="nv">arg_update_script</span><span class="o">=</span><span class="s2">&quot;${PWD}/${UPDATE_SCRIPT}&quot;</span>
+<span class="nv">arg_listvar</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+<span class="nv">arg_help</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+<span class="nv">arg_version</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+
+<span class="k">while</span> <span class="o">[</span> <span class="nv">$# </span>-gt 0 <span class="o">]</span>; <span class="k">do</span>
+<span class="k">    case</span> <span class="nv">$1</span> in
+        -p<span class="o">)</span>             <span class="nv">arg_update_script</span><span class="o">=</span><span class="s2">&quot;$2&quot;</span>; <span class="nb">shift</span>; <span class="nb">break</span> ;;
+        -l|--listvar<span class="o">)</span>   <span class="nv">arg_listvar</span><span class="o">=</span><span class="s2">&quot;$2&quot;</span>; <span class="nb">shift</span>; <span class="nb">break</span> ;;
+        -h|--help<span class="o">)</span>      <span class="nv">arg_help</span><span class="o">=</span>t; <span class="nb">break</span> ;;
+        -v|--version<span class="o">)</span>   <span class="nv">arg_version</span><span class="o">=</span>t; <span class="nb">break</span> ;;
+        --<span class="o">)</span>             <span class="nb">shift</span>; <span class="nb">break</span> ;;
+        *<span class="o">)</span>              abort <span class="s2">&quot;$(gettext &quot;</span>Unknown argument: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;$@&quot;</span> ;;
+    <span class="k">esac</span>
+<span class="k">done</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show help message</p>
+</td><td class=code><div class=highlight><pre>
+<span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${arg_help}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">    </span>show_help
+<span class="k">fi</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Show version</p>
+</td><td class=code><div class=highlight><pre>
+<span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${arg_version}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">    </span>show_version
+<span class="k">fi</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>List variables in template file</p>
+</td><td class=code><div class=highlight><pre>
+<span class="k">if</span> <span class="o">[</span> <span class="s2">&quot;${arg_listvar}&quot;</span> <span class="o">]</span>; <span class="k">then</span>
+<span class="k">    </span>listvar <span class="k">${</span><span class="nv">arg_listvar</span><span class="k">}</span>
+    <span class="nb">exit</span>
+<span class="k">fi</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<p>Load update script, default name is <code>PKGBUILDUP</code></p>
+</td><td class=code><div class=highlight><pre>
+source_safe <span class="s2">&quot;${arg_update_script}&quot;</span>
+
+</pre></div></td></tr><tr><td class=docs>
+<h1>License</h1>
+<p>GNU General Public License, Version 3.0</p>
+</td><td class=code><div class=highlight><pre>
+
+
+</pre></div></td></tr><tr><td class=docs>
+</td><td class=code><div class=highlight><pre>
+
+</pre></div></td></tr><tr><td class=docs></td><td class='code'></td></tr>
+    </tbody>
+    </table>
+</div>
+</body>
+</html>
