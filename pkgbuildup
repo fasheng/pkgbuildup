@@ -475,8 +475,9 @@ upload_package() {
     (cd "${pkgdir}"; makepkg -fS) || return 1;
 
     local pkgsrc="$(ls --format=single-column --sort=time "${pkgdir}"/*.src.tar.gz | head -1)"
-    local upcmd="$(printf ${UPLOAD_CMD} ${pkgsrc})"
-    msg2 "$(gettext "Uploading package source to AUR: %s...")" ${pkgsrc}
+    local upcmd="$(printf "${UPLOAD_CMD}" "${pkgsrc}")"
+    msg2 "$(gettext "Uploading package source to AUR: %s...")" "${pkgsrc}"
+    msg2 "$(gettext "Upload command: %s")" "${upcmd}"
     eval "${upcmd}" || return 1
 }
 
