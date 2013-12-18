@@ -4,3 +4,4 @@ example/**/*.tar.xz
 example/**/*.deb
 example/**/*.tar.gz
 
+_deploy

@@ -14,10 +14,6 @@
     - -h, --help                    :: Prints help message
     - -v, --version                 :: Prints version information
 
-*** INSTALL
-    Run command *make install* or install through AUR which package
-    name is _pkgbuildup-git_.
-
 *** DESCRIPTION
     _pkgbuildup_ use two types of files named *PKGBUILD.tpl* and
     *PKGBUILDUP* to help _AUR_ package maintainer to automatic update

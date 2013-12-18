@@ -30,6 +30,12 @@ doc :
 	sed -i 's=http://jashkenas.github.com/docco/resources/docco.css=./docco.css=' doc/index.html
 	@echo "==> Done."
 
+deploy :
+	@echo "==> Deploy document..."
+	@mkdir _deploy
+	@cp -rvf doc/* _deploy
+	@echo "==> Done."
+
 install :
 	@echo "==> Installing..."
 	install -m755 pkgbuildup $(bindir)
