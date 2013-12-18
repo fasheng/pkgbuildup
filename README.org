@@ -42,7 +42,7 @@
     the documentation(http://fasheng.github.io/pkgbuildup).
 
 *** EXAMPLE
-    Here is an example to porting _hello_ package in debian to
+    Here is an example to porting *hello* package in debian to
     archlinux.
 
     Firstly, we get the package web page:

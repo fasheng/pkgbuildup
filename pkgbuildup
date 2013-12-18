@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# **pkgbuildup** a helper tool for `AUR` package maintainer to
+# **pkgbuildup** is a helper tool for `AUR` package maintainer to
 # automatic update `PKGBUILD` files, it use two types of files named
 # `PKGBUILD.tpl` and `PKGBUILDUP`.
 #
@@ -18,6 +18,10 @@
 # This script uses quite a few external programs during its execution. You
 # need to have at least the following installed to function:
 #   `coreutils`, `curl`, `find` (`findutils`), `gawk`, `gettext`, `grep`, `sed`.
+
+# # Install
+# Run command `make install` or install through AUR which package
+# name is `pkgbuildup-git`.
 
 # # Variables and functions for application
 
