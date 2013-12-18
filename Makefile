@@ -38,7 +38,9 @@ deploy :
 
 install :
 	@echo "==> Installing..."
+	@mkdir -p $(bindir)
 	install -m755 pkgbuildup $(bindir)
+	@mkdir -p $(mandir)
 	install -m644 man/pkgbuildup.1 $(mandir)
 	@echo "==> Done."
 
