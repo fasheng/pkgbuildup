@@ -219,8 +219,8 @@ get_downloadclient() {
 # Download file
 # Arguments:
 #
-#   - $1, the file url to download
-#   - $2 *optional*, file to save as, default value is the base name
+#   - **$1**, the file url to download
+#   - **$2** *optional*, file to save as, default value is the base name
 #     of the file url
 download_file() {
     local url=$1
@@ -284,7 +284,7 @@ download_file() {
 #
 # Arguments:
 #
-#   - $1, the template file
+#   - **$1**, the template file
 listvar() {
     tplfile=$1
     if [ ! -e "${tplfile}" ]; then
@@ -330,8 +330,8 @@ urldecode() {
 #
 # Arguments:
 #
-#   - $1, url of the web page
-#   - $2, regexp of the file name, used by command `grep -o -P` to get
+#   - **$1**, url of the web page
+#   - **$2**, regexp of the file name, used by command `grep -o -P` to get
 #     the last file name TODO
 get_latest_file_by_parsing_web_page() {
     msg2 "$(gettext "Parsing web page to get latest package file name...")"
@@ -362,14 +362,15 @@ get_latest_file_by_parsing_web_page() {
 #
 # Arguments:
 #
-#   - $1, the template file, such as `PKGBUILD.tpl`
-#   - $2 *optional*, the variable values for template file,
+#   - **$1**, the template `file`, such as `PKGBUILD.tpl`
+#   - **$2** *optional*, the variable values for template file,
 #     and echo variable own one line, such as:
 #
 #         var1=value1
 #         var2=value2
 #         var3=value3
-#   - $3 *optional*, the output `PKGBUILD` file, default is in the same
+#
+#   - **$3** *optional*, the output `PKGBUILD` file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
     msg2 "$(gettext "Generating PKGBUILD from template file...")"
@@ -426,7 +427,6 @@ varreg {
 }
 
 # Generate checksum for file
-# TODO
 generate_checksum() {
     local file=$1
     local integ=${INTEGRITY_CHECK}
@@ -476,7 +476,7 @@ upload_package() {
 #
 # Used variables:
 #
-#   - $FILE_INFO, a array with useful information to get the latest
+#   - **$FILE_INFO**, a array with useful information to get the latest
 #     package file name, echo element own four fields which were
 #     separate by `::`
 #
@@ -486,11 +486,11 @@ upload_package() {
 #
 #     Descripion of the format:
 #
-#       - filename_var, the package file's template variable name
-#       - checksum_var, the check-sum's template variable name for the
+#       - **filename_var**, the package file's template variable name
+#       - **checksum_var**, the check-sum's template variable name for the
 #         package file
-#       - url, the url of the web page which the package file place in
-#       - filename_regexp, the regexp to get the latest package file name, will
+#       - **url**, the url of the web page which the package file place in
+#       - **filename_regexp**, the regexp to get the latest package file name, will
 #         be used by command `grep -o -P`
 #
 #     Here is an example:
@@ -498,23 +498,23 @@ upload_package() {
 #         FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
 #                    "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
 #
-#  - $PKGVER_CMD *optional*, the command to get package version, if exist
+#  - **$PKGVER_CMD** *optional*, the command to get package version, if exist
 #    `%s`, will be replaced by `$pkgverreg`, default value is `grep -o -P \"%s\" | tail -1`
-#  - $PKGREL_CMD *optional*, the command to get package release version, , if exist
+#  - **$PKGREL_CMD** *optional*, the command to get package release version, , if exist
 #    `%s`, will be replaced by `$pkgrelreg`, default value is `grep -o -P \"%s\" | tail -1`
 #
 # Arguments:
 #
-#   - $1, the template file
-#   - $2 *optional*, package version regexp, used by `$PKGVER_CMD` in
+#   - **$1**, the template file
+#   - **$2** *optional*, package version regexp, used by `$PKGVER_CMD` in
 #     the first package file name, and set the value to template
 #     variable `pkgver`
-#   - $3 *optional*, package release regexp, used by `$PKGREL_CMD` in
+#   - **$3** *optional*, package release regexp, used by `$PKGREL_CMD` in
 #     the first package file name, and set the value to template
 #     variable `pkgrel`
-#   - $4 *optional*, if value is `true`, will run `makepkg` after
+#   - **$4** *optional*, if value is `true`, will run `makepkg` after
 #     updating, default value is `true`
-#   - $5 *optional*, if value is `true`, will upload package to AUR
+#   - **$5** *optional*, if value is `true`, will upload package to AUR
 #     after upldating, default value is `true`
 do_update_pkgbuild_for_source_site() {
     msg "$(gettext "Update PKGBUILD which package file living in other linux distribution source site...")"
