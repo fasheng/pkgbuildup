@@ -241,12 +241,12 @@ download_file() {
 
     # replace `%o` by the temporary dlfile if it exists
     if [[ $dlcmd = *%o* ]]; then
-        dlcmd=${dlcmd//\%o/\"$filename.part\"}
+        dlcmd="${dlcmd//\%o/\"$filename.part\"}"
         dlfile="$filename.part"
     fi
     # add the URL, either in place of `%u` or at the end
     if [[ $dlcmd = *%u* ]]; then
-        dlcmd=${dlcmd//\%u/\"$url\"}
+        dlcmd="${dlcmd//\%u/\"$url\"}"
     else
         dlcmd="$dlcmd \"$url\""
     fi
@@ -299,22 +299,20 @@ END {
 ' ${tplfile}
 }
 
-# ####
-# Join multi-line strings to one line
+# #### Join multi-line strings to one line
 joinline() {
     echo $*
 }
 
-# ####
-# Decode url string, such as convert "%2b" to "+"
+# #### Decode url string, such as convert `%2b` to `+`
 urldecode() {
     local tmpstr="$(cat - | sed -e 's/%/\\x/g')"
     printf "${tmpstr}\n"
 }
 
-# ####
-# Get latest file by parsing web page
+# #### Get latest file by parsing web page
 # Arguments:
+# 
 #   - $1, url of the web page
 #   - $2, regexp of the file name, used by command "grep -o -P" and
 #     sort to get the last file
@@ -343,16 +341,16 @@ get_latest_file_by_parsing_web_page() {
     printf "%s\n" "${latestfn}"
 }
 
-# ####
-# Generate PKGBUILD from template file
+# #### Generate PKGBUILD from template file
 # Arguments:
+# 
 #   - $1, the template file, such as "PKGBUILD.template"
-#   - $2 [optional], the variable values for template file,
+#   - $2 *optional*, the variable values for template file,
 #     and echo variable own one line, such as:
 #       "var1=value1
 #        var2=value2
 #        var3=value3"
-#   - $3 [optional], the output PKGBUILD file, default is in the same
+#   - $3 *optional*, the output PKGBUILD file, default is in the same
 #     directory with template file
 generate_pkgbuild() {
     msg2 "$(gettext "Generating PKGBUILD from template file...")"
@@ -375,7 +373,7 @@ generate_pkgbuild() {
 BEGIN {
     varreg="(^.*){% *(\\w+) *%}(.*$)"
 
-    # build varvalues array
+    #- build varvalues array
     split(varvalues_str, lines, "\n")
     for (i in lines) {
         split(lines[i], arr, "=")
@@ -392,8 +390,8 @@ varreg {
             $0=gensub("{% *"var" *%}", value, "g")
         }
 
-        # no matter there are undefined variables, just
-        # remove it in tmpstr to avoid infinity loop
+        #- no matter there are undefined variables, just
+        #- remove it in tmpstr to avoid infinity loop
         tmpstr=gensub(varreg, "\\1\\3", "g", tmpstr)
     }
     print
@@ -408,7 +406,7 @@ varreg {
     fi
 }
 
-# ####
+# #### Generate checksum for file
 generate_checksum() {
     local file=$1
     local integ=${INTEGRITY_CHECK}
@@ -431,13 +429,13 @@ generate_checksum() {
     printf "%s" "${sum}"
 }
 
-# ####
+# #### Run `makepkg`
 run_makepkg() {
     local pkgdir=$1
     (cd "${pkgdir}"; rm -rf src pkg; makepkg -f) || return 1
 }
 
-# ####
+# #### Upload source package to AUR
 upload_package() {
     local pkgdir=$1
     
@@ -452,44 +450,52 @@ upload_package() {
 
 # ### Helper functions for target package, could use directly
 
-# ####
-# Update PKGBUILD which package file living in other linux
+# #### Update PKGBUILD which package file living in other linux
 # distribution's source site, and get the latest package file name by
 # parsing the web page
+# 
 # Need variables:
+# 
 #   - $FILE_INFO, a array with useful information to get the latest
 #     package file name, echo element own four fields which were
-#     separate by "::".
+#     separate by `::`.
+#     
 #     The element format looks like as:
-#       "filename_var::checksum_var::url::filename_regexp"
+#
+#         "filename_var::checksum_var::url::filename_regexp"
 #     Descripion of the format:
+#     
 #       - filename_var, the variable name in template file corresponding to the
 #         package file name
 #       - checksum_var, the check-sum's variable name for the package file
 #       - url, the url of the web page which the package file place in
 #       - filename_regexp, the regexp to get the latest package file name, will
-#         be used by command "grep -o -P"
+#         be used by command `grep -o -P`
+#         
 #     Here is an example:
-#       FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
-#                  "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
-#  - $PKGVER_CMD [optional], the command to get package version, if exist
-    # "%s", will be replaced by $pkgverreg, default value is "grep -o -P %s | tail -1"
-#  - $PKGREL_CMD [optional], the command to get package release version, , if exist
-    # "%s", will be replaced by $pkgrelreg, default value is "grep -o -P %s | tail -1"
+#
+#         FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
+#                    "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
+#  - $PKGVER_CMD *optional*, the command to get package version, if exist
+#    `%s`, will be replaced by `$pkgverreg`, default value is `grep -o -P %s | tail -1`
+#  - $PKGREL_CMD *optional*, the command to get package release version, , if exist
+#    `%s`, will be replaced by `$pkgrelreg`, default value is `grep -o -P %s | tail -1`
+# 
 # Arguments:
+# 
 #   - $1, template file
-#   - $2 [optional], package version regexp, used by $PKGVER_CMD in
+#   - $2 *optional*, package version regexp, used by `$PKGVER_CMD` in
 #     the first package file name, and set the value to template
-#     variable "pkgver"
-#   - $3 [optional], package release regexp, used by $PKGREL_CMD in
+#     variable `pkgver`
+#   - $3 *optional*, package release regexp, used by `$PKGREL_CMD` in
 #     the first package file name, and set the value to template
-#     variable "pkgrel"
-#   - $4 [optional], if value is "true", will run makepkg after
-#     updating, default value is "true"
-#   - $5 [optional], if value is "true", will upload package to AUR
-#     after upldating, default value is "true"
+#     variable `pkgrel`
+#   - $4 *optional*, if value is `true`, will run `makepkg` after
+#     updating, default value is `true`
+#   - $5 *optional*, if value is `true`, will upload package to AUR
+#     after upldating, default value is `true`
 do_update_pkgbuild_for_source_site() {
-    msg "$(gettext "Update PKGBUILD which package file living in other linux distribution's source site...")"
+    msg "$(gettext "Update PKGBUILD which package file living in other linux distribution source site...")"
     local tplfile=$1
     local pkgverreg=$2
     local pkgrelreg=$3
@@ -502,7 +508,7 @@ do_update_pkgbuild_for_source_site() {
     abort_if_var_empty "${pkgverreg}" "pkgverreg"
     msg2 "$(gettext "Updating %s...")" "${tplfile}"
     
-    # parse variable FILE_INFO to get each package file's latest name and check-sum
+    #- parse variable FILE_INFO to get each package file's latest name and check-sum
     local mainfn=""
     for info in "${FILE_INFO[@]}"; do
         local filename_var="$(echo $info | awk -F '::' '{print $1}')"
@@ -514,24 +520,24 @@ do_update_pkgbuild_for_source_site() {
         latestfn=$(get_latest_file_by_parsing_web_page "${url}" "${filereg}") || return 1
         varvalues=$(printf "%s\n%s" "${varvalues}" "${filename_var}=${latestfn}")
         
-        # download latest package file
+        #- download latest package file
         local fileurl="${url}/${latestfn}"
         local savefile="$(dirname ${tplfile})/${latestfn}"
         download_file ${fileurl} ${savefile} || return 1
         
-        # generate integrity checks
+        #- generate integrity checks
         local checksum
         checksum=$(generate_checksum ${savefile}) || return 1
         varvalues=$(printf "%s\n%s" "${varvalues}" "${checksum_var}=${checksum}")
         
-        # set first package as the main package, and mark its latest
-        # file name to get package version later
+        #- set first package as the main package, and mark its latest
+        #- file name to get package version later
         if [ -z "${mainfn}" ]; then
             mainfn=${latestfn}
         fi
     done
     
-    # get package version
+    #- get package version
     PKGVER_CMD=${PKGVER_CMD:-"grep -o -P \"%s\" | tail -1"}
     pkgver_cmd="echo ${mainfn} | ""$(printf "${PKGVER_CMD}" "${pkgverreg}")"
     msg2 "$(gettext "Getting package version, regexp: %s")" "${pkgverreg}"
@@ -539,7 +545,7 @@ do_update_pkgbuild_for_source_site() {
     local pkgver="$(eval "${pkgver_cmd}")"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgver=${pkgver}")"
     
-    # get package release
+    #- get package release
     PKGREL_CMD=${PKGREL_CMD:-"grep -o -P \"%s\" | tail -1"}
     pkgrel_cmd="echo ${mainfn} | ""$(printf "${PKGREL_CMD}" "${pkgrelreg}")"
     msg2 "$(gettext "Getting package release, regexp: %s")" "${pkgrelreg}"
@@ -547,23 +553,22 @@ do_update_pkgbuild_for_source_site() {
     local pkgrel="$(eval "${pkgrel_cmd}")"
     varvalues="$(printf "%s\n%s" "${varvalues}" "pkgrel=${pkgrel}")"
     
-    # generate new PKGBUILD
+    #- generate new PKGBUILD
     generate_pkgbuild "${tplfile}" "${varvalues}"
     
-    # run makepkg
+    #- run makepkg
     local pkgdir="$(dirname ${tplfile})"
     if [ "${makepkg}" = "true" ]; then
         run_makepkg ${pkgdir} || return 1
     fi
 
-    # upload package
+    #- upload package
     if [ "${upload}" = "true" ]; then
         upload_package ${pkgdir} || return 1
     fi
 }
 
-# ####
-# Wrapper for do_update_pkgbuild_for_source_site()
+# #### Wrapper for do_update_pkgbuild_for_source_site()
 update_pkgbuild_for_source_site() {
     local tplfile=$1
     do_update_pkgbuild_for_source_site "$@"
@@ -576,7 +581,7 @@ update_pkgbuild_for_source_site() {
 
 # ### Main loop
 
-# Setup bash
+# Setup bash.
 shopt -s extglob
 
 # Dispatch arguments.
