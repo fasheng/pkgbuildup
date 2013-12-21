@@ -38,8 +38,11 @@
     the documentation(http://fasheng.github.io/pkgbuildup).
 
 *** EXAMPLE
-    Here is an example to porting *hello* package in debian to
-    archlinux.
+    Here is an example to porting *hello* binary package in debian to
+    archlinux, and shows how to dispatch multiple source files in
+    _PKGBUILD_. But be careful, in the real situation, download source
+    file and compile will be a better choice when porting a linux
+    software.
 
     Firstly, we get the package web page:
     http://ftp.debian.org/debian/pool/main/h/hello

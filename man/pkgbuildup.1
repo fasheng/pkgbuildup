@@ -47,8 +47,11 @@ a debian package to archlinux, you may want to use
 the documentation(\fIhttp://fasheng.github.io/pkgbuildup\fP).
 .SH "EXAMPLE"
 .PP
-Here is an example to porting \fBhello\fP package in debian to
-archlinux.
+Here is an example to porting \fBhello\fP binary package in debian to
+archlinux, and shows how to dispatch multiple source files in
+\fIPKGBUILD\fP. But be careful, in the real situation, download source
+file and compile will be a better choice when porting a linux
+software.
 
 .PP
 Firstly, we get the package web page:
