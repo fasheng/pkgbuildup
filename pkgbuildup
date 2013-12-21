@@ -495,11 +495,11 @@ upload_package() {
 #
 #     The element format will looks like as:
 #
-#         "filename_var::checksum_var::url::filename_regexp"
+#         "fileurl_var::checksum_var::url::filename_regexp"
 #
 #     Descripion of the format:
 #
-#       - **filename_var**, the package file's template variable name
+#       - **fileurl_var**, the package file url's template variable name
 #       - **checksum_var**, the check-sum's template variable name for the
 #         package file
 #       - **url**, the url of the web page which the package file place in
@@ -508,8 +508,8 @@ upload_package() {
 #
 #     Here is an example:
 #
-#         FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
-#                    "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
+#         FILE_INFO=("fileurl_1::md5_1::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
+#                    "fileurl_2::md5_2::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
 #
 #  - **$PKGVER_CMD** *optional*, the command to get package version, if exist
 #    `%s`, will be replaced by `$pkgverreg`, default value is `grep -o -P \"%s\" | tail -1`
@@ -546,17 +546,17 @@ do_update_pkgbuild_for_source_site() {
     #- parse variable FILE_INFO to get each package file's latest name and check-sum
     local mainfn=""
     for info in "${FILE_INFO[@]}"; do
-        local filename_var="$(echo $info | awk -F '::' '{print $1}')"
+        local fileurl_var="$(echo $info | awk -F '::' '{print $1}')"
         local checksum_var="$(echo $info | awk -F '::' '{print $2}')"
         local url="$(echo $info | awk -F '::' '{print $3}')"
         local filereg="$(echo $info | awk -F '::' '{print $4}')"
 
         local latestfn
         latestfn=$(get_latest_file_by_parsing_web_page "${url}" "${filereg}") || return 1
-        varvalues=$(printf "%s\n%s" "${varvalues}" "${filename_var}=${latestfn}")
+        local fileurl="${url}/${latestfn}"
+        varvalues=$(printf "%s\n%s" "${varvalues}" "${fileurl_var}=${fileurl}")
 
         #- download latest package file
-        local fileurl="${url}/${latestfn}"
         local savefile="$(dirname ${tplfile})/${latestfn}"
         download_file ${fileurl} ${savefile} || return 1
 

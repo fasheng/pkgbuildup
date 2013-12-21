@@ -571,8 +571,9 @@ upload_package<span class="o">()</span> <span class="o">{</span>
     <span class="o">(</span><span class="nb">cd</span> <span class="s2">&quot;${pkgdir}&quot;</span>; makepkg -fS<span class="o">)</span> <span class="o">||</span> <span class="k">return </span>1;
 
     <span class="nb">local </span><span class="nv">pkgsrc</span><span class="o">=</span><span class="s2">&quot;$(ls --format=single-column --sort=time &quot;</span><span class="k">${</span><span class="nv">pkgdir</span><span class="k">}</span><span class="s2">&quot;/*.src.tar.gz | head -1)&quot;</span>
-    <span class="nb">local </span><span class="nv">upcmd</span><span class="o">=</span><span class="s2">&quot;$(printf ${UPLOAD_CMD} ${pkgsrc})&quot;</span>
-    msg2 <span class="s2">&quot;$(gettext &quot;</span>Uploading package <span class="nb">source </span>to AUR: %s...<span class="s2">&quot;)&quot;</span> <span class="k">${</span><span class="nv">pkgsrc</span><span class="k">}</span>
+    <span class="nb">local </span><span class="nv">upcmd</span><span class="o">=</span><span class="s2">&quot;$(printf &quot;</span><span class="k">${</span><span class="nv">UPLOAD_CMD</span><span class="k">}</span><span class="s2">&quot; &quot;</span><span class="k">${</span><span class="nv">pkgsrc</span><span class="k">}</span><span class="s2">&quot;)&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Uploading package <span class="nb">source </span>to AUR: %s...<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${pkgsrc}&quot;</span>
+    msg2 <span class="s2">&quot;$(gettext &quot;</span>Upload <span class="nb">command</span>: %s<span class="s2">&quot;)&quot;</span> <span class="s2">&quot;${upcmd}&quot;</span>
     <span class="nb">eval</span> <span class="s2">&quot;${upcmd}&quot;</span> <span class="o">||</span> <span class="k">return </span>1
 <span class="o">}</span>
 
@@ -591,11 +592,11 @@ parsing the web page</p>
     package file name, echo element own four fields which were
     separate by <code>::</code></p>
 <p>The element format will looks like as:</p>
-<pre><code>"filename_var::checksum_var::url::filename_regexp"
+<pre><code>"fileurl_var::checksum_var::url::filename_regexp"
 </code></pre>
 <p>Descripion of the format:</p>
 <ul>
-<li><strong>filename_var</strong>, the package file's template variable name</li>
+<li><strong>fileurl_var</strong>, the package file url's template variable name</li>
 <li><strong>checksum_var</strong>, the check-sum's template variable name for the
     package file</li>
 <li><strong>url</strong>, the url of the web page which the package file place in</li>
@@ -603,8 +604,8 @@ parsing the web page</p>
     be used by command <code>grep -o -P</code></li>
 </ul>
 <p>Here is an example:</p>
-<pre><code>FILE_INFO=("filename1::md51::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
-           "filename2::md52::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
+<pre><code>FILE_INFO=("fileurl_1::md5_1::http://ftp.debian.org/debian/pool/main/h/hello::hello_.*?\.tar\.gz"
+           "fileurl_2::md5_2::http://ftp.debian.org/debian/pool/main/h/hello-debhelper::hello-debhelper_.*?\.tar\.gz")
 </code></pre>
 </li>
 <li>
@@ -646,17 +647,17 @@ do_update_pkgbuild_for_source_site<span class="o">()</span> <span class="o">{</s
     <span class="c">#- parse variable FILE_INFO to get each package file&#39;s latest name and check-sum</span>
     <span class="nb">local </span><span class="nv">mainfn</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
     <span class="k">for </span>info in <span class="s2">&quot;${FILE_INFO[@]}&quot;</span>; <span class="k">do</span>
-<span class="k">        </span><span class="nb">local </span><span class="nv">filename_var</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $1}&#39;)&quot;</span>
+<span class="k">        </span><span class="nb">local </span><span class="nv">fileurl_var</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $1}&#39;)&quot;</span>
         <span class="nb">local </span><span class="nv">checksum_var</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $2}&#39;)&quot;</span>
         <span class="nb">local </span><span class="nv">url</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $3}&#39;)&quot;</span>
         <span class="nb">local </span><span class="nv">filereg</span><span class="o">=</span><span class="s2">&quot;$(echo $info | awk -F &#39;::&#39; &#39;{print $4}&#39;)&quot;</span>
 
         <span class="nb">local </span>latestfn
         <span class="nv">latestfn</span><span class="o">=</span><span class="k">$(</span>get_latest_file_by_parsing_web_page <span class="s2">&quot;${url}&quot;</span> <span class="s2">&quot;${filereg}&quot;</span><span class="k">)</span> <span class="o">||</span> <span class="k">return </span>1
-        <span class="nv">varvalues</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span> <span class="s2">&quot;%s\n%s&quot;</span> <span class="s2">&quot;${varvalues}&quot;</span> <span class="s2">&quot;${filename_var}=${latestfn}&quot;</span><span class="k">)</span>
+        <span class="nb">local </span><span class="nv">fileurl</span><span class="o">=</span><span class="s2">&quot;${url}/${latestfn}&quot;</span>
+        <span class="nv">varvalues</span><span class="o">=</span><span class="k">$(</span><span class="nb">printf</span> <span class="s2">&quot;%s\n%s&quot;</span> <span class="s2">&quot;${varvalues}&quot;</span> <span class="s2">&quot;${fileurl_var}=${fileurl}&quot;</span><span class="k">)</span>
 
         <span class="c">#- download latest package file</span>
-        <span class="nb">local </span><span class="nv">fileurl</span><span class="o">=</span><span class="s2">&quot;${url}/${latestfn}&quot;</span>
         <span class="nb">local </span><span class="nv">savefile</span><span class="o">=</span><span class="s2">&quot;$(dirname ${tplfile})/${latestfn}&quot;</span>
         download_file <span class="k">${</span><span class="nv">fileurl</span><span class="k">}</span> <span class="k">${</span><span class="nv">savefile</span><span class="k">}</span> <span class="o">||</span> <span class="k">return </span>1
 

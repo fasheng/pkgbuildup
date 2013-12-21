@@ -8,22 +8,22 @@ update_hello() {
     local url="http://ftp.debian.org/debian/pool/main/h/hello"
     local filereg_x86="hello_.*?_i386.deb"
     local filereg_x64="hello_.*?_amd64.deb"
-    
+
     # Meaningful variables for update_pkgbuild_for_source_site()
     # $FILE_INFO, a array with useful information to get the latest
     #   package file name, echo element own four fields which were
     #   separate by "::".
     #   The element format looks like as:
-    #     "filename_var::checksum_var::url::filename_regexp"
-    #   filename_var and checksum_var are the template variable's name
-    local FILE_INFO=("filename_x86::md5_x86::${url}::${filereg_x86}"
-                     "filename_x64::md5_x64::${url}::${filereg_x64}")
-    
+    #     "fileurl_var::checksum_var::url::filename_regexp"
+    #   fileurl_var and checksum_var are the template variable's name
+    local FILE_INFO=("fileurl_x86::md5_x86::${url}::${filereg_x86}"
+                     "fileurl_x64::md5_x64::${url}::${filereg_x64}")
+
     # $PKGREL_CMD, the command to get package release version, if
     # exist "%s", will be replaced by $pkgrelreg. This command will
     # be used on first package file name in $FILE_INFO
     local PKGREL_CMD="grep -oP '\-\d+_' | tr -d '\-_'"
-    
+
     # Arguments for update_pkgbuild_for_source_site()
     local tplfile="hello/PKGBUILD.tpl"
     local pkgverreg='[0-9]\.[0-9]'  # regexp to get package version
